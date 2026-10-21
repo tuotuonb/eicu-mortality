@@ -1,0 +1,112 @@
+[
+ {
+  "name": "gcs",
+  "label": "GCS 评分",
+  "mean_abs_shap": 0.4763
+ },
+ {
+  "name": "age",
+  "label": "年龄",
+  "mean_abs_shap": 0.3235
+ },
+ {
+  "name": "resp_rate",
+  "label": "呼吸频率",
+  "mean_abs_shap": 0.2948
+ },
+ {
+  "name": "temperature",
+  "label": "体温",
+  "mean_abs_shap": 0.2708
+ },
+ {
+  "name": "creatinine_max_lab",
+  "label": "肌酐",
+  "mean_abs_shap": 0.2577
+ },
+ {
+  "name": "bun_max_lab",
+  "label": "尿素氮",
+  "mean_abs_shap": 0.2099
+ },
+ {
+  "name": "mech_vent",
+  "label": "首日机械通气",
+  "mean_abs_shap": 0.1982
+ },
+ {
+  "name": "heart_rate",
+  "label": "心率",
+  "mean_abs_shap": 0.1876
+ },
+ {
+  "name": "mean_bp",
+  "label": "平均动脉压",
+  "mean_abs_shap": 0.1224
+ },
+ {
+  "name": "bicarbonate_min",
+  "label": "碳酸氢根",
+  "mean_abs_shap": 0.0931
+ },
+ {
+  "name": "hemoglobin_min",
+  "label": "血红蛋白",
+  "mean_abs_shap": 0.0803
+ },
+ {
+  "name": "diabetes",
+  "label": "糖尿病",
+  "mean_abs_shap": 0.0758
+ },
+ {
+  "name": "wbc_max_lab",
+  "label": "白细胞",
+  "mean_abs_shap": 0.0537
+ },
+ {
+  "name": "glucose",
+  "label": "血糖",
+  "mean_abs_shap": 0.044
+ },
+ {
+  "name": "potassium_max",
+  "label": "血钾",
+  "mean_abs_shap": 0.0426
+ },
+ {
+  "name": "elective_surgery",
+  "label": "择期手术",
+  "mean_abs_shap": 0.0278
+ },
+ {
+  "name": "platelets_min",
+  "label": "血小板",
+  "mean_abs_shap": 0.0215
+ },
+ {
+  "name": "metastatic_cancer",
+  "label": "转移性肿瘤",
+  "mean_abs_shap": 0.005
+ },
+ {
+  "name": "male",
+  "label": "男性",
+  "mean_abs_shap": 0.0025
+ },
+ {
+  "name": "immunosuppression",
+  "label": "免疫抑制",
+  "mean_abs_shap": 0.0
+ },
+ {
+  "name": "cirrhosis",
+  "label": "肝硬化",
+  "mean_abs_shap": 0.0
+ },
+ {
+  "name": "hematologic_cancer",
+  "label": "血液系统肿瘤",
+  "mean_abs_shap": 0.0
+ }
+]

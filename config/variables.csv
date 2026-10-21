@@ -1,0 +1,45 @@
+name,label,unit,type,table1
+age,年龄,岁,continuous,1
+male,男性,,binary,1
+bmi,BMI,kg/m²,continuous,1
+admit_source,入科来源,,categorical,1
+unittype,ICU 类型,,categorical,0
+heart_rate,心率（首日最差值）,次/分,continuous,1
+mean_bp,平均动脉压（首日最差值）,mmHg,continuous,1
+resp_rate,呼吸频率（首日最差值）,次/分,continuous,1
+temperature,体温（首日最差值）,℃,continuous,1
+gcs,GCS 评分,分,continuous,1
+wbc,白细胞,×10⁹/L,continuous,1
+sodium,血钠,mmol/L,continuous,1
+creatinine,肌酐,mg/dL,continuous,1
+bun,尿素氮,mg/dL,continuous,1
+glucose,血糖,mg/dL,continuous,1
+hematocrit,红细胞压积,%,continuous,1
+albumin,白蛋白,g/dL,continuous,0
+bilirubin,总胆红素,mg/dL,continuous,0
+urine_24h,首日尿量,mL,continuous,0
+ph,动脉血 pH,,continuous,0
+pao2,PaO2,mmHg,continuous,0
+fio2,FiO2,%,continuous,0
+lactate_max,乳酸（最高值）,mmol/L,continuous,1
+lactate_first,乳酸（首次值）,mmol/L,continuous,0
+platelets_min,血小板（最低值）,×10⁹/L,continuous,1
+bicarbonate_min,碳酸氢根（最低值）,mmol/L,continuous,1
+potassium_max,血钾（最高值）,mmol/L,continuous,1
+hemoglobin_min,血红蛋白（最低值）,g/dL,continuous,1
+inr_max,INR（最高值）,,continuous,1
+creatinine_max_lab,肌酐（检验表最高值）,mg/dL,continuous,0
+bun_max_lab,尿素氮（检验表最高值）,mg/dL,continuous,0
+wbc_max_lab,白细胞（检验表最高值）,×10⁹/L,continuous,0
+mech_vent,首日机械通气,,binary,1
+dialysis,首日透析,,binary,1
+elective_surgery,择期手术,,binary,1
+diabetes,糖尿病,,binary,1
+cirrhosis,肝硬化,,binary,1
+immunosuppression,免疫抑制,,binary,1
+metastatic_cancer,转移性肿瘤,,binary,1
+hepatic_failure,肝衰竭,,binary,0
+hematologic_cancer,血液系统肿瘤,,binary,1
+apache_score,APACHE IV 评分,分,continuous,1
+apache_iva_pred,APACHE IVa 预测院内死亡率,,continuous,0
+icu_los_hours,ICU 停留时长,小时,continuous,1
