@@ -92,6 +92,8 @@ results/（表格、图表、报告） + dashboard/（风险计算器网页）
 ```
 eicu-mortality/
 ├── run_all.py              一键运行全流程
+├── index.html              GitHub Pages 入口，跳转到项目展示页
+├── .github/workflows/      推送到 main 后自动发布网页（GitHub Actions）
 ├── config/variables.csv    变量字典（中文名、单位、类型），Python 和 R 共用
 ├── sql/                    提数 SQL（DuckDB 方言）
 │   ├── 01_cohort.sql           队列筛选与流程统计
