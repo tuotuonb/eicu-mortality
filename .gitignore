@@ -1,0 +1,14 @@
+# 虚拟环境与缓存
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+.Rhistory
+.RData
+
+# 原始数据体积较大，按 README 步骤自行下载
+data/raw/*.csv.gz
+data/processed/
+
+# 含患者级数据的中间结果不公开（运行 run_all.py 可重新生成）
+results/model/model.rds
+results/model/predictions_*.csv

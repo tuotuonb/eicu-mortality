@@ -1,0 +1,318 @@
+{
+  "outcome": "院内死亡",
+  "coefficients": {
+    "Intercept": 19.1252832075,
+    "age": 0.04031044549,
+    "mean_bp": -0.041111927354,
+    "mean_bp'": 0.09384955163,
+    "resp_rate": 0.028175165721,
+    "temperature": -0.58332421838,
+    "temperature'": 0.53386341492,
+    "gcs": -0.16484080462,
+    "creatinine_max_lab": 1.7437833931,
+    "creatinine_max_lab'": -3.0724948854,
+    "bicarbonate_min": -0.1042693782,
+    "bicarbonate_min'": 0.15362134654,
+    "mech_vent=是": 0.86064780771,
+    "diabetes=是": -0.9095648893
+  },
+  "test_cases": [
+    {
+      "age": 40.4,
+      "mean_bp": 166.8,
+      "resp_rate": 7.3,
+      "temperature": 35.6,
+      "gcs": 9.3,
+      "creatinine_max_lab": 1.4,
+      "bicarbonate_min": 19.8,
+      "mech_vent": 0,
+      "diabetes": 0,
+      "lp_expected": -3.4036130171
+    },
+    {
+      "age": 21.4,
+      "mean_bp": 159,
+      "resp_rate": 29.6,
+      "temperature": 34.9,
+      "gcs": 13,
+      "creatinine_max_lab": 5.6,
+      "bicarbonate_min": 14.3,
+      "mech_vent": 0,
+      "diabetes": 0,
+      "lp_expected": -3.5782222176
+    },
+    {
+      "age": 56.4,
+      "mean_bp": 142.8,
+      "resp_rate": 25.2,
+      "temperature": 35.5,
+      "gcs": 9,
+      "creatinine_max_lab": 1.7,
+      "bicarbonate_min": 32.5,
+      "mech_vent": 1,
+      "diabetes": 0,
+      "lp_expected": -0.64047408205
+    },
+    {
+      "age": 22.3,
+      "mean_bp": 120.6,
+      "resp_rate": 4.9,
+      "temperature": 34.8,
+      "gcs": 10.2,
+      "creatinine_max_lab": 4.4,
+      "bicarbonate_min": 22.5,
+      "mech_vent": 0,
+      "diabetes": 1,
+      "lp_expected": -5.6878489914
+    },
+    {
+      "age": 25.8,
+      "mean_bp": 107.8,
+      "resp_rate": 10.6,
+      "temperature": 35.5,
+      "gcs": 8.1,
+      "creatinine_max_lab": 5.6,
+      "bicarbonate_min": 16,
+      "mech_vent": 1,
+      "diabetes": 0,
+      "lp_expected": -3.5054022358
+    },
+    {
+      "age": 86.9,
+      "mean_bp": 86.8,
+      "resp_rate": 25.1,
+      "temperature": 35.3,
+      "gcs": 6.7,
+      "creatinine_max_lab": 1.7,
+      "bicarbonate_min": 17.5,
+      "mech_vent": 0,
+      "diabetes": 1,
+      "lp_expected": -1.7693734065
+    },
+    {
+      "age": 27.3,
+      "mean_bp": 62.9,
+      "resp_rate": 30.8,
+      "temperature": 36.4,
+      "gcs": 5.7,
+      "creatinine_max_lab": 0.9,
+      "bicarbonate_min": 18.3,
+      "mech_vent": 1,
+      "diabetes": 1,
+      "lp_expected": -3.9527817032
+    },
+    {
+      "age": 41.2,
+      "mean_bp": 107.6,
+      "resp_rate": 21.4,
+      "temperature": 37,
+      "gcs": 8.3,
+      "creatinine_max_lab": 3.9,
+      "bicarbonate_min": 14.7,
+      "mech_vent": 1,
+      "diabetes": 0,
+      "lp_expected": -2.6090807527
+    },
+    {
+      "age": 81.8,
+      "mean_bp": 69.3,
+      "resp_rate": 25.8,
+      "temperature": 35.8,
+      "gcs": 8,
+      "creatinine_max_lab": 1.8,
+      "bicarbonate_min": 10.5,
+      "mech_vent": 0,
+      "diabetes": 1,
+      "lp_expected": -1.4074336404
+    },
+    {
+      "age": 29.8,
+      "mean_bp": 135.4,
+      "resp_rate": 14.7,
+      "temperature": 37.8,
+      "gcs": 12.8,
+      "creatinine_max_lab": 4.7,
+      "bicarbonate_min": 21.6,
+      "mech_vent": 0,
+      "diabetes": 0,
+      "lp_expected": -5.0471680414
+    },
+    {
+      "age": 33.3,
+      "mean_bp": 91.5,
+      "resp_rate": 47.1,
+      "temperature": 36.9,
+      "gcs": 5,
+      "creatinine_max_lab": 5.1,
+      "bicarbonate_min": 21.8,
+      "mech_vent": 0,
+      "diabetes": 1,
+      "lp_expected": -4.3065339201
+    },
+    {
+      "age": 51.6,
+      "mean_bp": 89.6,
+      "resp_rate": 38,
+      "temperature": 34.6,
+      "gcs": 10.2,
+      "creatinine_max_lab": 3.4,
+      "bicarbonate_min": 15.1,
+      "mech_vent": 1,
+      "diabetes": 1,
+      "lp_expected": -1.982418028
+    }
+  ],
+  "variables": [
+    {
+      "name": "age",
+      "label": "年龄",
+      "unit": "岁",
+      "type": "linear",
+      "knots": {},
+      "p01_median_p99": [19.16, 65, 90]
+    },
+    {
+      "name": "mean_bp",
+      "label": "平均动脉压（首日最差值）",
+      "unit": "mmHg",
+      "type": "rcs",
+      "knots": [47, 66, 141],
+      "p01_median_p99": [40, 66, 192]
+    },
+    {
+      "name": "resp_rate",
+      "label": "呼吸频率（首日最差值）",
+      "unit": "次/分",
+      "type": "linear",
+      "knots": {},
+      "p01_median_p99": [4, 28, 60]
+    },
+    {
+      "name": "temperature",
+      "label": "体温（首日最差值）",
+      "unit": "℃",
+      "type": "rcs",
+      "knots": [35.8, 36.5, 37.1],
+      "p01_median_p99": [33.316, 36.5, 39.184]
+    },
+    {
+      "name": "gcs",
+      "label": "GCS 评分",
+      "unit": "分",
+      "type": "linear",
+      "knots": {},
+      "p01_median_p99": [3, 15, 15]
+    },
+    {
+      "name": "creatinine_max_lab",
+      "label": "肌酐（检验表最高值）",
+      "unit": "mg/dL",
+      "type": "rcs",
+      "knots": [0.63, 1.07, 2.752],
+      "p01_median_p99": [0.42, 1.07, 9.13]
+    },
+    {
+      "name": "bicarbonate_min",
+      "label": "碳酸氢根（最低值）",
+      "unit": "mmol/L",
+      "type": "rcs",
+      "knots": [17, 23, 29],
+      "p01_median_p99": [7, 23, 35]
+    },
+    {
+      "name": "mech_vent",
+      "label": "首日机械通气",
+      "unit": "",
+      "type": "binary",
+      "knots": {},
+      "p01_median_p99": {}
+    },
+    {
+      "name": "diabetes",
+      "label": "糖尿病",
+      "unit": "",
+      "type": "binary",
+      "knots": {},
+      "p01_median_p99": {}
+    }
+  ],
+  "performance": [
+    {
+      "数据集": "建模组",
+      "模型": "本研究模型（表观）",
+      "例数": 1217,
+      "死亡数": 100,
+      "AUC": "0.883 (0.847–0.919)",
+      "Brier": 0.055,
+      "校准截距": 0.05,
+      "校准斜率": 1.03,
+      "HL检验P": "0.534"
+    },
+    {
+      "数据集": "建模组",
+      "模型": "本研究模型（Bootstrap 1000 次校正）",
+      "例数": 1217,
+      "死亡数": 100,
+      "AUC": "0.849",
+      "Brier": 0.061,
+      "校准截距": -0.25,
+      "校准斜率": 0.85,
+      "HL检验P": ""
+    },
+    {
+      "数据集": "验证组",
+      "模型": "本研究模型",
+      "例数": 451,
+      "死亡数": 51,
+      "AUC": "0.814 (0.749–0.879)",
+      "Brier": 0.081,
+      "校准截距": -0.13,
+      "校准斜率": 0.75,
+      "HL检验P": "0.019"
+    },
+    {
+      "数据集": "建模组（有 APACHE 预测者）",
+      "模型": "本研究模型",
+      "例数": 1026,
+      "死亡数": 86,
+      "AUC": "0.881 (0.840–0.922)",
+      "Brier": 0.055,
+      "校准截距": 0.11,
+      "校准斜率": 1.04,
+      "HL检验P": "0.221"
+    },
+    {
+      "数据集": "建模组（有 APACHE 预测者）",
+      "模型": "APACHE IVa",
+      "例数": 1026,
+      "死亡数": 86,
+      "AUC": "0.879 (0.846–0.912)",
+      "Brier": 0.058,
+      "校准截距": -0.21,
+      "校准斜率": 1.09,
+      "HL检验P": "0.124"
+    },
+    {
+      "数据集": "验证组（有 APACHE 预测者）",
+      "模型": "本研究模型",
+      "例数": 381,
+      "死亡数": 42,
+      "AUC": "0.814 (0.744–0.883)",
+      "Brier": 0.082,
+      "校准截距": -0.19,
+      "校准斜率": 0.73,
+      "HL检验P": "0.028"
+    },
+    {
+      "数据集": "验证组（有 APACHE 预测者）",
+      "模型": "APACHE IVa",
+      "例数": 381,
+      "死亡数": 42,
+      "AUC": "0.842 (0.785–0.899)",
+      "Brier": 0.08,
+      "校准截距": 0.02,
+      "校准斜率": 0.99,
+      "HL检验P": "0.467"
+    }
+  ]
+}

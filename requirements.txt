@@ -1,0 +1,8 @@
+duckdb
+pandas
+pyarrow
+scikit-learn
+xgboost
+shap
+matplotlib
+jupyterlab

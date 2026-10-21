@@ -1,0 +1,409 @@
+<title>ICU 院内死亡风险计算器</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap">
+<style>
+/* 布局：标题区 → 左侧首日指标输入 / 右侧风险结果（窄屏上下排列）→ 模型说明 → 使用限制 */
+:root {
+  --bg: #F3F6F8;
+  --surface: #FFFFFF;
+  --ink: #15212D;
+  --muted: #5A6B7B;
+  --line: #D7DFE6;
+  --accent: #2F6FA3;
+  --accent-soft: #E4EEF6;
+  --apache: #C9652A;
+  --low: #2C8257;
+  --mid: #A86E12;
+  --high: #B83A2E;
+  --dot-off: #DCE4EA;
+  --font-display: "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E151C; --surface: #16202A; --ink: #E4EBF1; --muted: #93A3B2; --line: #283746;
+    --accent: #72A9DA; --accent-soft: #1C3044; --apache: #EE9A63;
+    --low: #5DBB8A; --mid: #E0A84A; --high: #EE7C6F; --dot-off: #2A3846;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E151C; --surface: #16202A; --ink: #E4EBF1; --muted: #93A3B2; --line: #283746;
+  --accent: #72A9DA; --accent-soft: #1C3044; --apache: #EE9A63;
+  --low: #5DBB8A; --mid: #E0A84A; --high: #EE7C6F; --dot-off: #2A3846;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.65; }
+.wrap {
+  max-width: 1120px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 56px;
+  display: grid; gap: 28px;
+}
+h1, h2 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.3; }
+h1 { font-size: clamp(26px, 4.2vw, 38px); }
+h2 { font-size: 21px; }
+p { margin: 0; }
+.eyebrow { font-size: 12.5px; letter-spacing: .12em; color: var(--accent); font-weight: 500; }
+.muted { color: var(--muted); }
+.num { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+
+/* 标题区 */
+.intro { display: grid; gap: 10px; max-width: 72ch; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 6px; }
+.fact { display: grid; }
+.fact b { font-family: var(--font-data); font-size: 20px; font-weight: 600; }
+.fact span { font-size: 12.5px; color: var(--muted); }
+
+/* 工具区 */
+.tool { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 20px; align-items: start; }
+@media (max-width: 880px) { .tool { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.examples { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.examples span { font-size: 12.5px; color: var(--muted); }
+button { font: inherit; cursor: pointer; }
+.chip {
+  border: 1px solid var(--line); background: transparent; color: var(--ink);
+  border-radius: 999px; padding: 3px 12px; font-size: 13px;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.fields { display: grid; gap: 4px; }
+.field { display: grid; gap: 4px; padding: 10px 0; border-top: 1px solid var(--line); }
+.field:first-child { border-top: none; }
+.field-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.field-head label, .field-head .label { font-weight: 500; }
+.field-head .unit { color: var(--muted); font-size: 13px; font-weight: 400; margin-left: 4px; }
+.pts { font-family: var(--font-data); font-size: 12.5px; color: var(--accent); white-space: nowrap; }
+.field-ctl { display: grid; grid-template-columns: minmax(0, 1fr) 84px; gap: 12px; align-items: center; }
+.field-ctl input[type="number"] {
+  width: 100%; font-family: var(--font-data); font-size: 15px; text-align: right;
+  padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink);
+}
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.hint { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.hint .warn { color: var(--mid); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: none; background: transparent; color: var(--ink); padding: 4px 18px; font-size: 14px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+
+/* 结果区 */
+.result { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); display: grid; gap: 18px; }
+@media (max-width: 880px) { .result { position: static; } }
+.risk { display: grid; gap: 6px; }
+.risk-num { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.risk-num .num { font-size: clamp(44px, 7vw, 60px); font-weight: 600; line-height: 1; }
+.pill { font-size: 13px; font-weight: 500; padding: 2px 10px; border-radius: 999px; border: 1px solid currentColor; }
+.lvl-low { color: var(--low); } .lvl-mid { color: var(--mid); } .lvl-high { color: var(--high); }
+
+.scale { display: grid; gap: 4px; }
+.scale-track { position: relative; height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--low), var(--mid) 45%, var(--high)); opacity: .85; }
+.scale-marker { position: absolute; top: -5px; width: 4px; height: 20px; border-radius: 2px; background: var(--ink); transform: translateX(-2px); transition: left .25s ease; }
+.scale-ticks { position: relative; height: 18px; font-family: var(--font-data); font-size: 11.5px; color: var(--muted); }
+.scale-ticks span { position: absolute; transform: translateX(-50%); }
+
+.dots { display: grid; grid-template-columns: repeat(20, 1fr); gap: 3px; max-width: 320px; }
+.dots i { aspect-ratio: 1; border-radius: 50%; background: var(--dot-off); }
+.dots i.on { background: var(--high); }
+.dots-caption { font-size: 13.5px; }
+
+.contrib { display: grid; gap: 7px; }
+.contrib-row { display: grid; grid-template-columns: 6.5em minmax(0, 1fr) 3.2em; gap: 10px; align-items: center; font-size: 13px; }
+.contrib-bar { height: 8px; background: var(--dot-off); border-radius: 4px; overflow: hidden; }
+.contrib-bar b { display: block; height: 100%; background: var(--accent); border-radius: 4px; transition: width .25s ease; }
+.contrib-row .num { text-align: right; }
+.total { display: flex; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 8px; font-size: 13.5px; }
+
+/* 模型说明 */
+.about { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr); gap: 20px; }
+@media (max-width: 880px) { .about { grid-template-columns: minmax(0, 1fr); } }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 500; color: var(--muted); font-size: 12.5px; letter-spacing: .04em; }
+td.num, th.num { text-align: right; white-space: nowrap; }
+tr.ours td:first-child { font-weight: 700; color: var(--accent); }
+tr.apache td:first-child { color: var(--apache); font-weight: 500; }
+.note { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+.steps { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.steps li { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); gap: 10px; font-size: 14px; }
+.steps li b { font-weight: 500; color: var(--muted); }
+.limits { font-size: 13px; color: var(--muted); max-width: 80ch; display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 18px; }
+.limits strong { color: var(--ink); font-weight: 500; }
+
+@media (prefers-reduced-motion: reduce) { .scale-marker, .contrib-bar b { transition: none; } }
+</style>
+
+<main class="wrap">
+  <header class="intro">
+    <p class="eyebrow">eICU 多中心重症数据 · 列线图模型</p>
+    <h1>ICU 院内死亡风险计算器</h1>
+    <p class="muted">输入患者入 ICU 首日的 9 项床旁指标，按列线图模型估算院内死亡风险。模型基于美国 eICU 数据库建立，并在其他地区的医院做了外部验证。</p>
+    <div class="facts" id="facts"></div>
+  </header>
+
+  <section class="tool" aria-label="风险计算">
+    <form class="panel" id="form" autocomplete="off">
+      <div class="panel-head">
+        <h2>入 ICU 首日指标</h2>
+        <div class="examples" role="group" aria-label="填入示例患者">
+          <span>示例患者</span>
+          <button type="button" class="chip" data-example="low" aria-pressed="false">低风险</button>
+          <button type="button" class="chip" data-example="mid" aria-pressed="true">中等风险</button>
+          <button type="button" class="chip" data-example="high" aria-pressed="false">高风险</button>
+        </div>
+      </div>
+      <div class="fields" id="fields"></div>
+    </form>
+
+    <aside class="panel result" aria-live="polite">
+      <div class="risk">
+        <p class="muted">预测院内死亡风险</p>
+        <div class="risk-num"><span class="num" id="risk">–</span><span class="pill" id="level"></span></div>
+        <p class="muted" style="font-size:13px" id="baseline"></p>
+      </div>
+      <div class="scale" aria-hidden="true">
+        <div class="scale-track"><div class="scale-marker" id="marker"></div></div>
+        <div class="scale-ticks" id="ticks"></div>
+      </div>
+      <div>
+        <div class="dots" id="dots" aria-hidden="true"></div>
+        <p class="dots-caption" id="dots-caption" style="margin-top:8px"></p>
+      </div>
+      <div class="contrib">
+        <p class="muted" style="font-size:13px">列线图得分（各指标对风险的贡献）</p>
+        <div id="contrib"></div>
+        <div class="total"><span>总得分</span><span class="num" id="total">–</span></div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="about" aria-label="模型说明">
+    <div class="panel">
+      <div class="panel-head"><h2>四个模型在外部验证组的表现</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>模型</th><th class="num">变量数</th><th class="num">建模组 AUC</th><th class="num">外部验证组 AUC (95% CI)</th></tr></thead>
+          <tbody id="perf"></tbody>
+        </table>
+      </div>
+      <p class="note" id="perf-note"></p>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>研究方法</h2></div>
+      <ul class="steps" id="steps"></ul>
+    </div>
+  </section>
+
+  <footer class="limits">
+    <p><strong>仅用于科研与教学演示，不能用于临床决策。</strong>模型基于 2014–2015 年美国医院的公开数据建立，建模组只有 100 例死亡事件；在国内医院使用前，需要用本地数据重新验证和校准。</p>
+    <p>数据来源：eICU Collaborative Research Database Demo v2.0.1（PhysioNet，开放获取）。风险分层阈值（5%、20%）仅为演示设置。</p>
+  </footer>
+</main>
+
+<script type="application/json" id="model-data">__DATA_JSON__</script>
+
+<script id="model-math">
+// 模型计算：与 R 的 rms 包完全一致（限制性立方样条，3 个节点，norm = 2）
+function rcsTerm(x, knots) {
+  const [t1, t2, t3] = knots;
+  const cube = (u) => Math.pow(Math.max(u, 0), 3);
+  return (cube(x - t1) - cube(x - t2) * (t3 - t1) / (t3 - t2) + cube(x - t3) * (t2 - t1) / (t3 - t2)) / Math.pow(t3 - t1, 2);
+}
+function contribution(model, v, x) {
+  const c = model.coefficients;
+  if (v.type === "binary") return c[v.name + "=是"] * x;
+  let s = c[v.name] * x;
+  if (v.type === "rcs") s += c[v.name + "'"] * rcsTerm(x, v.knots);
+  return s;
+}
+function linearPredictor(model, values) {
+  return model.variables.reduce((s, v) => s + contribution(model, v, values[v.name]), model.coefficients.Intercept);
+}
+function probability(lp) { return 1 / (1 + Math.exp(-lp)); }
+</script>
+
+<script>
+const DATA = JSON.parse(document.getElementById("model-data").textContent);
+const MODEL = DATA.model;
+const REPORT = DATA.report;
+
+// 输入范围与列线图刻度范围（与 R 列线图一致）
+const FIELDS = {
+  age:                { label: "年龄", unit: "岁", min: 18, max: 90, step: 1, axis: [20, 90], hint: "90 岁及以上按 90 岁计" },
+  mean_bp:            { label: "平均动脉压", unit: "mmHg", min: 40, max: 160, step: 1, axis: [40, 160], hint: "首日最差值，即偏离正常最远的一次" },
+  resp_rate:          { label: "呼吸频率", unit: "次/分", min: 4, max: 60, step: 1, axis: [5, 55], hint: "首日最差值" },
+  temperature:        { label: "体温", unit: "℃", min: 32, max: 40, step: 0.1, axis: [32, 40], hint: "首日最差值" },
+  gcs:                { label: "GCS 评分", unit: "分", min: 3, max: 15, step: 1, axis: [3, 15], hint: "使用镇静、肌松药物时无法评估" },
+  creatinine_max_lab: { label: "肌酐", unit: "mg/dL", min: 0.3, max: 8, step: 0.1, axis: [0.5, 8],
+                        hint: "入科前 6 小时至入科后 24 小时内的最高值", extra: (x) => `约 ${Math.round(x * 88.4)} µmol/L` },
+  bicarbonate_min:    { label: "碳酸氢根", unit: "mmol/L", min: 8, max: 40, step: 1, axis: [8, 36], hint: "同一时间窗内的最低值" },
+  mech_vent:          { label: "首日机械通气", hint: "入 ICU 首日有创机械通气或气管插管" },
+  diabetes:           { label: "糖尿病", hint: "既往糖尿病史。本数据中糖尿病与较低的死亡风险相关（重症研究中称为“糖尿病悖论”），解读需谨慎" },
+};
+
+// 示例患者（虚构，仅用于演示）
+const EXAMPLES = {
+  low:  { age: 66, mean_bp: 64, resp_rate: 26, temperature: 36.3, gcs: 14, creatinine_max_lab: 1.1, bicarbonate_min: 22, mech_vent: 0, diabetes: 0 },
+  mid:  { age: 72, mean_bp: 56, resp_rate: 30, temperature: 36.0, gcs: 13, creatinine_max_lab: 1.8, bicarbonate_min: 19, mech_vent: 0, diabetes: 0 },
+  high: { age: 76, mean_bp: 52, resp_rate: 32, temperature: 35.8, gcs: 10, creatinine_max_lab: 2.0, bicarbonate_min: 17, mech_vent: 1, diabetes: 0 },
+};
+
+const state = { ...EXAMPLES.mid };
+const VARS = MODEL.variables;
+
+// 列线图计分：每个变量在刻度范围内贡献的最小值记 0 分，贡献范围最大的变量记满 100 分
+const span = {};
+for (const v of VARS) {
+  const f = FIELDS[v.name];
+  const xs = v.type === "binary" ? [0, 1]
+    : Array.from({ length: 401 }, (_, i) => f.axis[0] + (f.axis[1] - f.axis[0]) * i / 400);
+  const cs = xs.map((x) => contribution(MODEL, v, x));
+  span[v.name] = { min: Math.min(...cs), max: Math.max(...cs) };
+}
+const maxRange = Math.max(...Object.values(span).map((s) => s.max - s.min));
+const points = (v, x) => Math.max(0, (contribution(MODEL, v, x) - span[v.name].min) / maxRange * 100);
+
+const fmtPct = (p) => (p < 0.01 ? "<1" : (p * 100).toFixed(p < 0.1 ? 1 : 0)) + "%";
+const level = (p) => (p < 0.05 ? ["低风险", "lvl-low"] : p < 0.2 ? ["中等风险", "lvl-mid"] : ["高风险", "lvl-high"]);
+
+function buildFields() {
+  const root = document.getElementById("fields");
+  for (const v of VARS) {
+    const f = FIELDS[v.name];
+    const el = document.createElement("div");
+    el.className = "field";
+    if (v.type === "binary") {
+      el.innerHTML = `
+        <div class="field-head"><span class="label" id="lbl-${v.name}">${f.label}</span><span class="pts" id="pts-${v.name}"></span></div>
+        <div class="seg" role="group" aria-labelledby="lbl-${v.name}">
+          <button type="button" id="in-${v.name}-0" data-value="0">否</button>
+          <button type="button" id="in-${v.name}-1" data-value="1">是</button>
+        </div>
+        <p class="hint">${f.hint}</p>`;
+      el.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => setValue(v.name, Number(b.dataset.value))));
+    } else {
+      el.innerHTML = `
+        <div class="field-head"><label for="in-${v.name}">${f.label}<span class="unit">${f.unit}</span></label><span class="pts" id="pts-${v.name}"></span></div>
+        <div class="field-ctl">
+          <input type="range" id="rng-${v.name}" min="${f.min}" max="${f.max}" step="${f.step}" aria-label="${f.label}">
+          <input type="number" id="in-${v.name}" min="${f.min}" max="${f.max}" step="${f.step}" inputmode="decimal">
+        </div>
+        <p class="hint"><span>${f.hint}</span><span id="extra-${v.name}"></span><span class="warn" id="warn-${v.name}"></span></p>`;
+      el.querySelector(`#rng-${v.name}`).addEventListener("input", (e) => setValue(v.name, Number(e.target.value)));
+      el.querySelector(`#in-${v.name}`).addEventListener("change", (e) => {
+        const x = Number(e.target.value);
+        if (Number.isFinite(x)) setValue(v.name, Math.min(f.max, Math.max(f.min, x)));
+      });
+    }
+    root.appendChild(el);
+  }
+}
+
+function setValue(name, x) {
+  state[name] = x;
+  document.querySelectorAll(".chip[data-example]").forEach((c) => {
+    const ex = EXAMPLES[c.dataset.example];
+    c.setAttribute("aria-pressed", String(VARS.every((v) => ex[v.name] === state[v.name])));
+  });
+  render();
+}
+
+function render() {
+  for (const v of VARS) {
+    const x = state[v.name];
+    const f = FIELDS[v.name];
+    if (v.type === "binary") {
+      for (const val of [0, 1]) document.getElementById(`in-${v.name}-${val}`).setAttribute("aria-pressed", String(x === val));
+    } else {
+      document.getElementById(`rng-${v.name}`).value = x;
+      const box = document.getElementById(`in-${v.name}`);
+      if (document.activeElement !== box) box.value = x;
+      document.getElementById(`extra-${v.name}`).textContent = f.extra ? f.extra(x) : "";
+      const [lo, , hi] = v.p01_median_p99;
+      document.getElementById(`warn-${v.name}`).textContent = x < lo || x > hi ? "超出建模数据的常见范围，结果仅供参考" : "";
+    }
+    document.getElementById(`pts-${v.name}`).textContent = `${points(v, x).toFixed(0)} 分`;
+  }
+
+  const p = probability(linearPredictor(MODEL, state));
+  const [lvlText, lvlClass] = level(p);
+  document.getElementById("risk").textContent = fmtPct(p);
+  const pill = document.getElementById("level");
+  pill.textContent = lvlText;
+  pill.className = `pill ${lvlClass}`;
+  const avg = REPORT.cohort.mortality;
+  document.getElementById("baseline").textContent =
+    `研究人群平均院内死亡率 ${(avg * 100).toFixed(1)}%，该患者约为平均水平的 ${(p / avg).toFixed(1)} 倍`;
+
+  // 风险刻度：按对数几率均匀排布
+  const logit = (q) => Math.log(q / (1 - q));
+  const lo = logit(0.01), hi = logit(0.9);
+  const pos = (q) => Math.min(100, Math.max(0, (logit(q) - lo) / (hi - lo) * 100));
+  document.getElementById("marker").style.left = pos(p) + "%";
+
+  const n = Math.round(p * 100);
+  document.querySelectorAll("#dots i").forEach((d, i) => d.classList.toggle("on", i < n));
+  document.getElementById("dots-caption").textContent = `每 100 名与该患者相似的 ICU 患者中，约有 ${n} 人在住院期间死亡。`;
+
+  const contrib = document.getElementById("contrib");
+  contrib.innerHTML = "";
+  let total = 0;
+  for (const v of VARS) {
+    const pt = points(v, state[v.name]);
+    total += pt;
+    const row = document.createElement("div");
+    row.className = "contrib-row";
+    row.innerHTML = `<span>${FIELDS[v.name].label}</span><span class="contrib-bar"><b style="width:${pt}%"></b></span><span class="num">${pt.toFixed(0)}</span>`;
+    contrib.appendChild(row);
+  }
+  document.getElementById("total").textContent = `${total.toFixed(0)} 分`;
+}
+
+function buildStatic() {
+  const c = REPORT.cohort;
+  const facts = [
+    [c.n.toLocaleString("zh-CN"), "例 ICU 患者"],
+    [c.hospitals, "家医院"],
+    [VARS.length, "项首日指标"],
+    [REPORT.headline_auc, "外部验证 AUC"],
+  ];
+  document.getElementById("facts").innerHTML = facts.map(([b, s]) => `<div class="fact"><b>${b}</b><span>${s}</span></div>`).join("");
+
+  const ticks = [0.02, 0.05, 0.1, 0.2, 0.4, 0.8];
+  const logit = (q) => Math.log(q / (1 - q));
+  const lo = logit(0.01), hi = logit(0.9);
+  document.getElementById("ticks").innerHTML = ticks
+    .map((q) => `<span style="left:${(logit(q) - lo) / (hi - lo) * 100}%">${q * 100}%</span>`).join("");
+
+  document.getElementById("dots").innerHTML = "<i></i>".repeat(100);
+
+  document.getElementById("perf").innerHTML = REPORT.performance.map((r) => `
+    <tr class="${r.css || ""}"><td>${r.model}</td><td class="num">${r.n_vars}</td>
+    <td class="num">${r.dev_auc}</td><td class="num">${r.val_auc}</td></tr>`).join("");
+  document.getElementById("perf-note").textContent = REPORT.performance_note;
+
+  document.getElementById("steps").innerHTML = REPORT.methods
+    .map(([k, v]) => `<li><b>${k}</b><span>${v}</span></li>`).join("");
+
+  document.querySelectorAll(".chip[data-example]").forEach((chip) =>
+    chip.addEventListener("click", () => {
+      Object.assign(state, EXAMPLES[chip.dataset.example]);
+      setValue(VARS[0].name, state[VARS[0].name]);
+    }));
+}
+
+buildFields();
+buildStatic();
+render();
+</script>

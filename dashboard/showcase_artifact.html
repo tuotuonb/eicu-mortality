@@ -1,0 +1,736 @@
+<title>ICU 死亡风险监护台</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700&display=swap">
+<style>
+/* 布局：全宽的床旁监护仪（波形通道 + 参数块 + 风险读数）→ 居中的项目叙事：数据、非线性、对比、SHAP、方法
+   单一深色主题：监护仪屏幕本身就是深色，各通道颜色沿用监护仪惯例（动脉压红、呼吸黄、体温白、神经紫、检验青、通气绿） */
+:root {
+  color-scheme: dark;
+  --bg: #05080C;
+  --glass: #0A1016;
+  --panel: #0E151D;
+  --line: #1B2833;
+  --ink: #E6EDF2;
+  --muted: #8B9DAC;
+  --dim: #4D5E6C;
+  --ch-abp: #FF5F5F;
+  --ch-resp: #FFD54A;
+  --ch-temp: #F1F4F6;
+  --ch-neuro: #C7A0FF;
+  --ch-lab: #4FC8F5;
+  --ch-vent: #5CE192;
+  --ch-patient: #A9B8C5;
+  --alarm-low: #5CE192;
+  --alarm-mid: #FFD54A;
+  --alarm-high: #FF5F5F;
+  --m-lr: #4FC8F5;
+  --m-rf: #5CE192;
+  --m-xgb: #C7A0FF;
+  --m-apache: #FF9C57;
+  --font-num: "Barlow Condensed", "DIN Alternate", "Arial Narrow", sans-serif;
+  --font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-display: "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --font-code: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.7; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--ch-lab); outline-offset: 2px; }
+.gutter {
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.inner { max-width: 1240px; margin: 0 auto; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+/* ---------------- 监护仪 ---------------- */
+.monitor { background: radial-gradient(120% 80% at 30% 0%, #0C1620 0%, var(--bg) 60%); border-bottom: 1px solid var(--line); padding-block: 22px 26px; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; margin-bottom: 18px; }
+.brand { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.brand h1 { font-family: var(--font-display); font-size: clamp(22px, 3vw, 30px); letter-spacing: .02em; }
+.brand p { color: var(--muted); font-size: 13.5px; }
+.examples { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.chip { border: 1px solid var(--line); background: var(--panel); border-radius: 4px; padding: 3px 12px; font-size: 13px; }
+.chip:hover { border-color: var(--muted); }
+.chip[aria-pressed="true"] { border-color: var(--ch-lab); color: var(--ch-lab); }
+
+.screen { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); grid-template-areas: "waves readout" "tiles readout"; gap: 14px; }
+@media (max-width: 940px) { .screen { grid-template-columns: minmax(0, 1fr); grid-template-areas: "readout" "waves" "tiles"; } }
+.waves { grid-area: waves; display: grid; gap: 10px; }
+.wave { display: grid; grid-template-columns: 92px minmax(0, 1fr) 118px; align-items: stretch; background: var(--glass); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.wave-tag { padding: 8px 10px; display: grid; align-content: space-between; border-right: 1px solid var(--line); }
+.wave-tag b { font-family: var(--font-num); font-size: 17px; letter-spacing: .08em; }
+.wave-tag span { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.wave canvas { width: 100%; height: 76px; display: block; }
+.wave-val { padding: 6px 12px; display: grid; justify-items: end; align-content: center; border-left: 1px solid var(--line); }
+.wave-val b { font-family: var(--font-num); font-size: 44px; font-weight: 600; line-height: 1; }
+.wave-val small { font-size: 12px; color: var(--muted); }
+@media (max-width: 560px) {
+  .wave { grid-template-columns: 70px minmax(0, 1fr) 88px; }
+  .wave-val b { font-size: 34px; }
+}
+
+.tiles { grid-area: tiles; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 640px) {
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tiles .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+.tile { background: var(--glass); border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px 11px; display: grid; gap: 4px; min-width: 0; }
+.tile-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.tile-head .ch { font-family: var(--font-num); font-size: 14px; letter-spacing: .08em; font-weight: 600; }
+.tile-head .pts { font-family: var(--font-num); font-size: 13px; color: var(--muted); }
+.tile-label { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.tile-val { display: flex; align-items: baseline; gap: 6px; min-height: 40px; }
+.tile-val b { font-family: var(--font-num); font-size: 36px; font-weight: 600; line-height: 1.05; }
+.tile-val small { font-size: 12px; color: var(--muted); }
+.tile-val em { font-style: normal; font-size: 12px; color: var(--muted); margin-left: auto; }
+.tile input[type="range"] { width: 100%; }
+.tile .warn { font-size: 11.5px; color: var(--alarm-mid); min-height: 1em; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { border: none; background: transparent; padding: 6px 0; font-size: 14px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--line); }
+
+.readout { grid-area: readout; background: var(--glass); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; display: grid; gap: 14px; align-content: start; }
+.readout .label { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); }
+.alarm { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; }
+.alarm i { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.alarm.high i { animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { to { visibility: hidden; } }
+.risk { font-family: var(--font-num); font-size: clamp(72px, 9vw, 104px); font-weight: 700; line-height: .9; letter-spacing: -.01em; }
+.risk small { font-size: .42em; margin-left: 2px; }
+.lvl-low { color: var(--alarm-low); } .lvl-mid { color: var(--alarm-mid); } .lvl-high { color: var(--alarm-high); }
+.compare { font-size: 13px; color: var(--muted); }
+.dots { display: grid; grid-template-columns: repeat(20, 1fr); gap: 3px; }
+.dots i { aspect-ratio: 1; border-radius: 1px; background: var(--line); }
+.dots i.on { background: currentColor; }
+.dots-cap { font-size: 13px; }
+.points { display: grid; gap: 5px; border-top: 1px solid var(--line); padding-top: 12px; }
+.points-row { display: grid; grid-template-columns: 5.6em minmax(0, 1fr) 2.4em; gap: 8px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.points-row span:last-child { text-align: right; font-family: var(--font-num); font-size: 14px; color: var(--ink); }
+.points-bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.points-bar b { display: block; height: 100%; border-radius: 3px; transition: width .25s ease; }
+.points-total { display: flex; justify-content: space-between; font-size: 13px; padding-top: 4px; }
+.points-total b { font-family: var(--font-num); font-size: 18px; }
+.disclaimer { font-size: 11.5px; color: var(--dim); }
+
+/* ---------------- 叙事章节 ---------------- */
+.story { padding-block: 56px 72px; }
+.story .inner { max-width: 1120px; display: grid; gap: 72px; }
+.chapter { display: grid; gap: 22px; }
+.chapter-head { display: grid; gap: 8px; max-width: 70ch; }
+.step { font-family: var(--font-num); font-size: 14px; letter-spacing: .14em; color: var(--muted); }
+.step b { color: var(--ch-lab); font-weight: 600; }
+.chapter h2 { font-family: var(--font-display); font-size: clamp(24px, 3.2vw, 34px); line-height: 1.35; }
+.chapter-head p { color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 860px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; min-width: 0; display: grid; gap: 12px; align-content: start; }
+.card h3 { font-size: 15px; font-weight: 500; }
+.card .cap { font-size: 12.5px; color: var(--muted); }
+
+.funnel { display: grid; gap: 8px; }
+.funnel-row { display: grid; grid-template-columns: minmax(0, 1fr) 5.2em; gap: 10px; align-items: center; }
+.funnel-bar { position: relative; min-height: 30px; display: flex; align-items: center; background: var(--glass); border-radius: 3px; overflow: hidden; }
+.funnel-bar b { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #12324A, #1A4C6E); border-right: 2px solid var(--ch-lab); }
+.funnel-bar span { position: relative; font-size: 12.5px; line-height: 1.35; padding: 5px 10px; }
+.funnel-row .num { text-align: right; font-size: 20px; }
+.funnel-row .num small { display: block; font-family: var(--font-body); font-size: 11px; color: var(--muted); line-height: 1; }
+.split { display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.split b { font-family: var(--font-num); font-size: 17px; color: var(--ink); margin-right: 2px; }
+
+pre.sql { margin: 0; overflow-x: auto; background: var(--glass); border: 1px solid var(--line); border-radius: 6px; padding: 14px; font-family: var(--font-code); font-size: 12.5px; line-height: 1.65; }
+.sql .kw { color: var(--ch-lab); }
+.sql .fn { color: var(--ch-resp); }
+.sql .cm { color: var(--dim); font-style: italic; }
+.sql .st { color: var(--ch-vent); }
+
+.miss { display: grid; gap: 12px; }
+.miss-row { display: grid; gap: 4px; }
+.miss-row > span { font-size: 13px; }
+.miss-bars { display: grid; gap: 3px; }
+.miss-bar { display: grid; grid-template-columns: 4.8em minmax(0, 1fr) 3.6em; gap: 8px; align-items: center; font-size: 11.5px; color: var(--muted); }
+.miss-bar i { display: block; height: 9px; border-radius: 2px; }
+.miss-bar .num { font-size: 15px; text-align: right; color: var(--ink); }
+
+.curves { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { font-family: var(--font-num); font-size: 11px; fill: var(--muted); }
+svg .zh { font-family: var(--font-body); }
+
+.roc-wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 860px) { .roc-wrap { grid-template-columns: minmax(0, 1fr); } }
+.legend { display: grid; gap: 6px; }
+.legend button { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 10px; align-items: center; text-align: left; background: var(--glass); border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px; }
+.legend button i { width: 14px; height: 3px; border-radius: 2px; }
+.legend button[aria-pressed="true"] { border-color: var(--muted); }
+.legend .auc { font-family: var(--font-num); font-size: 18px; }
+.legend .auc small { font-size: 12px; color: var(--muted); margin-left: 4px; }
+
+.shap { display: grid; gap: 6px; }
+.shap-row { display: grid; grid-template-columns: 6.5em minmax(0, 1fr) 3em; gap: 10px; align-items: center; font-size: 13px; }
+.shap-row i { display: block; height: 12px; border-radius: 2px; }
+.shap-row .num { text-align: right; font-size: 15px; }
+.shap-row.in { color: var(--ink); }
+.shap-row.out { color: var(--muted); }
+.key { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.key span { display: inline-flex; align-items: center; gap: 6px; }
+.key i { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+
+.methods { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.method { border-top: 2px solid var(--line); padding-top: 10px; display: grid; gap: 4px; }
+.method b { font-size: 13px; color: var(--ch-lab); font-weight: 500; }
+.method span { font-size: 13.5px; color: var(--muted); }
+footer { border-top: 1px solid var(--line); padding-block: 20px 36px; font-size: 12.5px; color: var(--muted); }
+footer .inner { max-width: 1120px; display: grid; gap: 6px; }
+footer strong { color: var(--ink); font-weight: 500; }
+
+@media (prefers-reduced-motion: reduce) {
+  .alarm.high i { animation: none; }
+  .points-bar b { transition: none; }
+}
+</style>
+
+<section class="monitor gutter" aria-label="风险监护">
+  <div class="inner">
+    <div class="bar">
+      <div class="brand">
+        <h1>ICU 死亡风险监护台</h1>
+        <p>eICU 多中心数据 · 列线图模型 · 调整入 ICU 首日指标，实时估算院内死亡风险</p>
+      </div>
+      <div class="examples" role="group" aria-label="载入示例患者">
+        <span>示例患者</span>
+        <button type="button" class="chip" data-example="low" aria-pressed="false">低风险</button>
+        <button type="button" class="chip" data-example="mid" aria-pressed="true">中等风险</button>
+        <button type="button" class="chip" data-example="high" aria-pressed="false">高风险</button>
+      </div>
+    </div>
+
+    <div class="screen">
+      <div class="waves">
+        <div class="wave">
+          <div class="wave-tag"><b style="color:var(--ch-abp)">ABP</b><span>动脉压<br>波形示意</span></div>
+          <canvas id="wave-abp" aria-label="动脉压波形示意，高低随平均动脉压变化"></canvas>
+          <div class="wave-val" style="color:var(--ch-abp)"><b id="wv-mean_bp">–</b><small>MAP mmHg</small></div>
+        </div>
+        <div class="wave">
+          <div class="wave-tag"><b style="color:var(--ch-resp)">RESP</b><span>呼吸<br>波形示意</span></div>
+          <canvas id="wave-resp" aria-label="呼吸波形示意，快慢随呼吸频率变化"></canvas>
+          <div class="wave-val" style="color:var(--ch-resp)"><b id="wv-resp_rate">–</b><small>次/分</small></div>
+        </div>
+      </div>
+
+      <form class="tiles" id="tiles" autocomplete="off" aria-label="入 ICU 首日指标"></form>
+
+      <aside class="readout" aria-live="polite">
+        <div class="label"><span>预测院内死亡风险</span><span class="alarm" id="alarm"><i></i><span id="alarm-text"></span></span></div>
+        <div class="risk" id="risk">–</div>
+        <p class="compare" id="compare"></p>
+        <div>
+          <div class="dots" id="dots" aria-hidden="true"></div>
+          <p class="dots-cap" id="dots-cap" style="margin-top:8px"></p>
+        </div>
+        <div class="points">
+          <div id="points"></div>
+          <div class="points-total"><span>列线图总得分</span><b id="total">–</b></div>
+        </div>
+        <p class="disclaimer">科研演示，不能用于临床决策。波形为示意，不代表真实监测数据。</p>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<main class="story gutter">
+  <div class="inner">
+
+    <section class="chapter" aria-labelledby="c1">
+      <div class="chapter-head">
+        <p class="step"><b>STEP 1</b> · 数据提取</p>
+        <h2 id="c1">从 2,520 条 ICU 记录，到 1,668 位患者</h2>
+        <p>用 SQL 在 eICU 原始表上完成队列筛选和首日特征提取。每一步排除都有记录，可以直接画成论文里的患者筛选流程图。</p>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h3>患者筛选流程</h3>
+          <div class="funnel" id="funnel"></div>
+          <div class="split" id="split"></div>
+        </div>
+        <div class="card">
+          <h3>用窗口函数取每位患者的首次 ICU 入住</h3>
+          <pre class="sql" id="sql"></pre>
+          <p class="cap">sql/01_cohort.sql 节选。同一患者可能多次住院、多次入 ICU，按出院年份、住院 ID、入科顺序编号后只保留第 1 条。</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3>自己从原始检验表提取，缺失率从 24–29% 降到 5–8%</h3>
+        <p class="cap">APACHE 表只记录评分用的一个值，很多患者是空的；原始检验表保留了全部结果。按入科前 6 小时至入科后 24 小时的时间窗口重新提取后，缺失大幅减少。</p>
+        <div class="miss" id="miss"></div>
+      </div>
+    </section>
+
+    <section class="chapter" aria-labelledby="c2">
+      <div class="chapter-head">
+        <p class="step"><b>STEP 2</b> · 建模</p>
+        <h2 id="c2">血压、体温、肌酐和碳酸氢根，都不是直线关系</h2>
+        <p>这几项指标与死亡风险呈 U 型或倒 U 型。模型用限制性立方样条刻画，下面的曲线由模型系数实时计算，圆点是监护台上当前患者的位置。</p>
+      </div>
+      <div class="curves" id="curves"></div>
+    </section>
+
+    <section class="chapter" aria-labelledby="c3">
+      <div class="chapter-head">
+        <p class="step"><b>STEP 3</b> · 外部验证</p>
+        <h2 id="c3">在没见过的医院里，和 APACHE IVa 正面比较</h2>
+        <p id="roc-intro"></p>
+      </div>
+      <div class="roc-wrap">
+        <div class="card"><svg id="roc" viewBox="0 0 360 360" role="img" aria-label="外部验证组 ROC 曲线"></svg></div>
+        <div class="card">
+          <h3>外部验证组 AUC（95% CI）</h3>
+          <div class="legend" id="legend"></div>
+          <p class="cap" id="roc-note"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="chapter" aria-labelledby="c4">
+      <div class="chapter-head">
+        <p class="step"><b>STEP 4</b> · 交叉印证</p>
+        <h2 id="c4">XGBoost 自己挑出的重要变量，和列线图几乎一样</h2>
+        <p id="shap-intro"></p>
+      </div>
+      <div class="card">
+        <div class="key"><span><i style="background:var(--m-lr)"></i>列线图模型中的变量</span><span><i style="background:var(--dim)"></i>其他候选变量</span></div>
+        <div class="shap" id="shap"></div>
+        <p class="cap">平均 |SHAP| 值：该变量对 XGBoost 预测对数几率的平均影响大小（建模组）。</p>
+      </div>
+    </section>
+
+    <section class="chapter" aria-labelledby="c5">
+      <div class="chapter-head">
+        <p class="step"><b>METHODS</b> · 研究方法</p>
+        <h2 id="c5">整条流水线一条命令即可复现</h2>
+      </div>
+      <div class="methods" id="methods"></div>
+    </section>
+  </div>
+</main>
+
+<footer class="gutter">
+  <div class="inner">
+    <p><strong>仅用于科研与教学演示，不能用于临床决策。</strong>模型基于 2014–2015 年美国医院的公开数据建立，建模组只有 100 例死亡事件；在国内医院使用前，需要用本地数据重新验证和校准。</p>
+    <p>数据来源：eICU Collaborative Research Database Demo v2.0.1（PhysioNet，开放获取）。技术栈：DuckDB SQL · Python（pandas、scikit-learn、XGBoost、SHAP）· R（rms、mice、pROC、dcurves）。</p>
+  </div>
+</footer>
+
+<script type="application/json" id="model-data">{"model": {"outcome": "院内死亡", "coefficients": {"Intercept": 19.1252832075, "age": 0.04031044549, "mean_bp": -0.041111927354, "mean_bp'": 0.09384955163, "resp_rate": 0.028175165721, "temperature": -0.58332421838, "temperature'": 0.53386341492, "gcs": -0.16484080462, "creatinine_max_lab": 1.7437833931, "creatinine_max_lab'": -3.0724948854, "bicarbonate_min": -0.1042693782, "bicarbonate_min'": 0.15362134654, "mech_vent=是": 0.86064780771, "diabetes=是": -0.9095648893}, "variables": [{"name": "age", "label": "年龄", "unit": "岁", "type": "linear", "knots": {}, "p01_median_p99": [19.16, 65, 90]}, {"name": "mean_bp", "label": "平均动脉压（首日最差值）", "unit": "mmHg", "type": "rcs", "knots": [47, 66, 141], "p01_median_p99": [40, 66, 192]}, {"name": "resp_rate", "label": "呼吸频率（首日最差值）", "unit": "次/分", "type": "linear", "knots": {}, "p01_median_p99": [4, 28, 60]}, {"name": "temperature", "label": "体温（首日最差值）", "unit": "℃", "type": "rcs", "knots": [35.8, 36.5, 37.1], "p01_median_p99": [33.316, 36.5, 39.184]}, {"name": "gcs", "label": "GCS 评分", "unit": "分", "type": "linear", "knots": {}, "p01_median_p99": [3, 15, 15]}, {"name": "creatinine_max_lab", "label": "肌酐（检验表最高值）", "unit": "mg/dL", "type": "rcs", "knots": [0.63, 1.07, 2.752], "p01_median_p99": [0.42, 1.07, 9.13]}, {"name": "bicarbonate_min", "label": "碳酸氢根（最低值）", "unit": "mmol/L", "type": "rcs", "knots": [17, 23, 29], "p01_median_p99": [7, 23, 35]}, {"name": "mech_vent", "label": "首日机械通气", "unit": "", "type": "binary", "knots": {}, "p01_median_p99": {}}, {"name": "diabetes", "label": "糖尿病", "unit": "", "type": "binary", "knots": {}, "p01_median_p99": {}}]}, "report": {"cohort": {"n": 1668, "deaths": 151, "mortality": 0.09052757793764989, "hospitals": 185}, "headline_auc": "0.814", "performance": [{"model": "Logistic 列线图模型（本计算器）", "css": "ours", "n_vars": 9, "dev_auc": "0.849（Bootstrap 校正）", "val_auc": "0.814 (0.749–0.879)"}, {"model": "XGBoost", "n_vars": 22, "dev_auc": "0.834（5 折交叉验证）", "val_auc": "0.818 (0.758–0.878)"}, {"model": "随机森林", "n_vars": 22, "dev_auc": "0.830（5 折交叉验证）", "val_auc": "0.798 (0.734–0.862)"}, {"model": "APACHE IVa", "css": "apache", "n_vars": "100+", "dev_auc": "—", "val_auc": "0.842 (0.785–0.899)*"}], "performance_note": "* 外部验证组中只有 381 例有 APACHE IVa 预测值。在这批患者中，本模型 AUC 为 0.814，与 APACHE IVa 的差异无统计学意义（配对 DeLong 检验 P = 0.319）；XGBoost、随机森林与本模型的差异也均无统计学意义。", "methods": [["研究对象", "eICU 数据库中首次入住 ICU 的成年患者，共 1,668 例，院内死亡 151 例"], ["数据提取", "用 SQL 从原始检验表按时间窗口提取首日检验值，缺失率由 24–29% 降至 5–8%"], ["缺失值", "多重插补（mice，5 次）"], ["变量筛选", "单因素分析（限制性立方样条）→ 多因素 Logistic 回归 → AIC 向后逐步回归"], ["内部验证", "Bootstrap 1000 次，每次重做变量筛选"], ["外部验证", "中西部、南部医院建模，西部、东北部医院验证"]]}, "split": {"dev": [1217, 100], "val": [451, 51]}, "cohort_steps": [{"step": 0, "description": "全部 ICU 入住记录", "n": 2520, "deaths": 212}, {"step": 1, "description": "保留每位患者首次住院的首次 ICU 入住", "n": 1841, "deaths": 168}, {"step": 2, "description": "排除年龄 < 18 岁或年龄缺失", "n": 1834, "deaths": 166}, {"step": 3, "description": "排除 ICU 停留不足 4 小时", "n": 1752, "deaths": 153}, {"step": 4, "description": "排除出院结局缺失", "n": 1729, "deaths": 153}, {"step": 5, "description": "排除缺少 APACHE 首日生理数据", "n": 1668, "deaths": 151}], "missing": [{"指标": "尿素氮", "APACHE 表缺失率(%)": 24.1, "SQL 提取缺失率(%)": 5.5}, {"指标": "肌酐", "APACHE 表缺失率(%)": 23.8, "SQL 提取缺失率(%)": 5.6}, {"指标": "白细胞", "APACHE 表缺失率(%)": 29.2, "SQL 提取缺失率(%)": 7.6}, {"指标": "红细胞压积 / 血红蛋白", "APACHE 表缺失率(%)": 26.9, "SQL 提取缺失率(%)": 7.8}], "roc": {"n": 381, "deaths": 42, "p_vs_apache": 0.319, "curves": [{"key": "p_logistic", "name": "Logistic 列线图模型", "auc": 0.814, "lo": 0.744, "hi": 0.883, "fpr": [0, 0.0029, 0.0029, 0.0029, 0.0029, 0.0029, 0.0059, 0.0059, 0.0059, 0.0088, 0.0118, 0.0118, 0.0147, 0.0177, 0.0177, 0.0206, 0.0236, 0.0265, 0.0265, 0.0295, 0.0324, 0.0354, 0.0383, 0.0413, 0.0413, 0.0413, 0.0413, 0.0442, 0.0442, 0.0442, 0.0472, 0.0472, 0.0501, 0.0501, 0.0501, 0.0531, 0.0531, 0.0531, 0.056, 0.059, 0.0619, 0.0649, 0.0678, 0.0708, 0.0737, 0.0767, 0.0796, 0.0826, 0.0826, 0.0855, 0.0885, 0.0885, 0.0914, 0.0944, 0.0944, 0.0973, 0.1003, 0.1032, 0.1062, 0.1062, 0.1062, 0.1091, 0.1091, 0.1121, 0.115, 0.118, 0.1209, 0.1239, 0.1268, 0.1298, 0.1327, 0.1357, 0.1386, 0.1416, 0.1445, 0.1475, 0.1504, 0.1534, 0.1563, 0.1593, 0.1622, 0.1652, 0.1681, 0.1711, 0.174, 0.177, 0.1799, 0.1829, 0.1858, 0.1888, 0.1888, 0.1888, 0.1917, 0.1917, 0.1947, 0.1976, 0.2006, 0.2035, 0.2065, 0.2094, 0.2094, 0.2124, 0.2153, 0.2183, 0.2183, 0.2212, 0.2242, 0.2271, 0.2301, 0.233, 0.236, 0.2389, 0.2419, 0.2448, 0.2478, 0.2478, 0.2507, 0.2537, 0.2537, 0.2566, 0.2596, 0.2625, 0.2655, 0.2684, 0.2714, 0.2743, 0.2773, 0.2802, 0.2832, 0.2861, 0.2891, 0.292, 0.295, 0.2979, 0.3009, 0.3038, 0.3068, 0.3097, 0.3097, 0.3127, 0.3156, 0.3186, 0.3215, 0.3245, 0.3274, 0.3304, 0.3333, 0.3363, 0.3392, 0.3422, 0.3451, 0.3481, 0.351, 0.354, 0.354, 0.3569, 0.3599, 0.3628, 0.3628, 0.3658, 0.3687, 0.3717, 0.3746, 0.3776, 0.3805, 0.3835, 0.3864, 0.3894, 0.3923, 0.3953, 0.3982, 0.4012, 0.4041, 0.4071, 0.4071, 0.41, 0.413, 0.4159, 0.4189, 0.4218, 0.4248, 0.4277, 0.4307, 0.4336, 0.4366, 0.4395, 0.4425, 0.4454, 0.4454, 0.4484, 0.4513, 0.4543, 0.4572, 0.4602, 0.4631, 0.4661, 0.469, 0.472, 0.4749, 0.4779, 0.4808, 0.4838, 0.4867, 0.4867, 0.4897, 0.4926, 0.4956, 0.4985, 0.5015, 0.5044, 0.5074, 0.5103, 0.5133, 0.5162, 0.5192, 0.5221, 0.5251, 0.528, 0.531, 0.5339, 0.5369, 0.5398, 0.5428, 0.5457, 0.5487, 0.5516, 0.5546, 0.5575, 0.5605, 0.5634, 0.5664, 0.5693, 0.5723, 0.5723, 0.5752, 0.5782, 0.5811, 0.5841, 0.587, 0.59, 0.5929, 0.5959, 0.5988, 0.6018, 0.6047, 0.6077, 0.6106, 0.6136, 0.6165, 0.6195, 0.6224, 0.6254, 0.6283, 0.6313, 0.6342, 0.6342, 0.6372, 0.6401, 0.6431, 0.646, 0.649, 0.6519, 0.6549, 0.6578, 0.6608, 0.6637, 0.6667, 0.6696, 0.6726, 0.6755, 0.6785, 0.6814, 0.6844, 0.6873, 0.6903, 0.6932, 0.6962, 0.6991, 0.7021, 0.705, 0.708, 0.7109, 0.7139, 0.7168, 0.7198, 0.7227, 0.7227, 0.7257, 0.7286, 0.7316, 0.7345, 0.7375, 0.7404, 0.7434, 0.7463, 0.7493, 0.7522, 0.7552, 0.7581, 0.7611, 0.764, 0.767, 0.7699, 0.7729, 0.7758, 0.7788, 0.7817, 0.7847, 0.7876, 0.7906, 0.7935, 0.7965, 0.7994, 0.8024, 0.8053, 0.8083, 0.8112, 0.8142, 0.8171, 0.8201, 0.823, 0.826, 0.8289, 0.8319, 0.8348, 0.8378, 0.8407, 0.8437, 0.8466, 0.8496, 0.8525, 0.8555, 0.8584, 0.8614, 0.8643, 0.8673, 0.8702, 0.8732, 0.8761, 0.8791, 0.882, 0.885, 0.8879, 0.8909, 0.8909, 0.8938, 0.8968, 0.8997, 0.9027, 0.9056, 0.9086, 0.9115, 0.9145, 0.9174, 0.9204, 0.9233, 0.9263, 0.9292, 0.9322, 0.9351, 0.9381, 0.941, 0.944, 0.9469, 0.9499, 0.9528, 0.9558, 0.9587, 0.9617, 0.9646, 0.9676, 0.9705, 0.9735, 0.9764, 0.9794, 0.9823, 0.9853, 0.9882, 0.9912, 0.9941, 0.9971, 1], "tpr": [0, 0, 0.0238, 0.0476, 0.0714, 0.0952, 0.0952, 0.119, 0.1429, 0.1429, 0.1429, 0.1667, 0.1667, 0.1667, 0.1905, 0.1905, 0.1905, 0.1905, 0.2143, 0.2143, 0.2143, 0.2143, 0.2143, 0.2143, 0.2381, 0.2619, 0.2857, 0.2857, 0.3095, 0.3333, 0.3333, 0.3571, 0.3571, 0.381, 0.4048, 0.4048, 0.4286, 0.4524, 0.4524, 0.4524, 0.4524, 0.4524, 0.4524, 0.4524, 0.4524, 0.4524, 0.4524, 0.4524, 0.4762, 0.4762, 0.4762, 0.5, 0.5, 0.5, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5476, 0.5714, 0.5714, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.619, 0.6429, 0.6429, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6905, 0.6905, 0.6905, 0.6905, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7381, 0.7381, 0.7381, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.8095, 0.8095, 0.8095, 0.8095, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]}, {"key": "p_rf", "name": "随机森林", "auc": 0.787, "lo": 0.712, "hi": 0.861, "fpr": [0, 0, 0.0029, 0.0029, 0.0059, 0.0059, 0.0059, 0.0059, 0.0088, 0.0118, 0.0118, 0.0118, 0.0118, 0.0147, 0.0177, 0.0206, 0.0206, 0.0236, 0.0265, 0.0295, 0.0324, 0.0324, 0.0354, 0.0383, 0.0383, 0.0413, 0.0413, 0.0413, 0.0442, 0.0472, 0.0472, 0.0472, 0.0501, 0.0531, 0.056, 0.056, 0.056, 0.056, 0.059, 0.0619, 0.0649, 0.0678, 0.0708, 0.0708, 0.0708, 0.0737, 0.0767, 0.0796, 0.0796, 0.0826, 0.0855, 0.0885, 0.0914, 0.0944, 0.0973, 0.1003, 0.1032, 0.1062, 0.1091, 0.1121, 0.115, 0.118, 0.118, 0.1209, 0.1239, 0.1268, 0.1298, 0.1327, 0.1327, 0.1357, 0.1386, 0.1386, 0.1416, 0.1445, 0.1475, 0.1475, 0.1504, 0.1534, 0.1563, 0.1563, 0.1593, 0.1622, 0.1652, 0.1681, 0.1711, 0.174, 0.177, 0.1799, 0.1829, 0.1858, 0.1888, 0.1917, 0.1947, 0.1976, 0.2006, 0.2035, 0.2065, 0.2094, 0.2124, 0.2153, 0.2183, 0.2212, 0.2242, 0.2271, 0.2301, 0.233, 0.236, 0.2389, 0.2419, 0.2448, 0.2478, 0.2507, 0.2537, 0.2566, 0.2566, 0.2596, 0.2625, 0.2655, 0.2684, 0.2714, 0.2714, 0.2743, 0.2743, 0.2773, 0.2802, 0.2832, 0.2861, 0.2891, 0.2891, 0.292, 0.295, 0.2979, 0.3009, 0.3038, 0.3068, 0.3097, 0.3127, 0.3156, 0.3186, 0.3215, 0.3245, 0.3245, 0.3274, 0.3304, 0.3333, 0.3333, 0.3363, 0.3392, 0.3392, 0.3422, 0.3451, 0.3481, 0.351, 0.354, 0.3569, 0.3599, 0.3628, 0.3658, 0.3687, 0.3717, 0.3746, 0.3776, 0.3805, 0.3835, 0.3864, 0.3894, 0.3923, 0.3953, 0.3982, 0.4012, 0.4041, 0.4071, 0.41, 0.41, 0.413, 0.4159, 0.4189, 0.4218, 0.4248, 0.4277, 0.4307, 0.4336, 0.4366, 0.4395, 0.4425, 0.4454, 0.4484, 0.4513, 0.4543, 0.4572, 0.4602, 0.4631, 0.4661, 0.469, 0.472, 0.4749, 0.4779, 0.4808, 0.4838, 0.4867, 0.4897, 0.4926, 0.4956, 0.4985, 0.5015, 0.5044, 0.5074, 0.5103, 0.5133, 0.5162, 0.5192, 0.5192, 0.5192, 0.5221, 0.5251, 0.528, 0.531, 0.5339, 0.5369, 0.5398, 0.5428, 0.5457, 0.5487, 0.5516, 0.5546, 0.5575, 0.5575, 0.5605, 0.5634, 0.5664, 0.5693, 0.5723, 0.5752, 0.5782, 0.5811, 0.5841, 0.587, 0.59, 0.5929, 0.5959, 0.5988, 0.6018, 0.6047, 0.6077, 0.6106, 0.6136, 0.6165, 0.6195, 0.6195, 0.6224, 0.6254, 0.6283, 0.6313, 0.6342, 0.6372, 0.6401, 0.6431, 0.646, 0.649, 0.6519, 0.6549, 0.6578, 0.6608, 0.6637, 0.6667, 0.6696, 0.6726, 0.6755, 0.6785, 0.6814, 0.6844, 0.6844, 0.6873, 0.6903, 0.6932, 0.6962, 0.6991, 0.7021, 0.7021, 0.705, 0.708, 0.7109, 0.7139, 0.7168, 0.7168, 0.7198, 0.7227, 0.7257, 0.7286, 0.7286, 0.7316, 0.7345, 0.7375, 0.7404, 0.7434, 0.7463, 0.7493, 0.7522, 0.7552, 0.7581, 0.7611, 0.764, 0.767, 0.7699, 0.7729, 0.7758, 0.7788, 0.7817, 0.7847, 0.7876, 0.7906, 0.7935, 0.7965, 0.7994, 0.8024, 0.8053, 0.8083, 0.8112, 0.8142, 0.8171, 0.8201, 0.823, 0.826, 0.8289, 0.8319, 0.8348, 0.8378, 0.8407, 0.8437, 0.8466, 0.8496, 0.8525, 0.8555, 0.8584, 0.8614, 0.8643, 0.8673, 0.8702, 0.8732, 0.8761, 0.8791, 0.882, 0.885, 0.8879, 0.8909, 0.8938, 0.8968, 0.8997, 0.9027, 0.9056, 0.9086, 0.9115, 0.9145, 0.9174, 0.9204, 0.9233, 0.9263, 0.9292, 0.9322, 0.9351, 0.9381, 0.941, 0.944, 0.9469, 0.9499, 0.9528, 0.9558, 0.9587, 0.9617, 0.9646, 0.9676, 0.9705, 0.9735, 0.9764, 0.9794, 0.9823, 0.9853, 0.9882, 0.9912, 0.9941, 0.9971, 1], "tpr": [0, 0.0238, 0.0238, 0.0476, 0.0476, 0.0714, 0.0952, 0.119, 0.119, 0.119, 0.1429, 0.1667, 0.1905, 0.1905, 0.1905, 0.1905, 0.2143, 0.2143, 0.2143, 0.2143, 0.2143, 0.2381, 0.2381, 0.2381, 0.2619, 0.2619, 0.2857, 0.3095, 0.3095, 0.3095, 0.3333, 0.3571, 0.3571, 0.3571, 0.3571, 0.381, 0.4048, 0.4286, 0.4286, 0.4286, 0.4286, 0.4286, 0.4286, 0.4524, 0.4762, 0.4762, 0.4762, 0.4762, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5476, 0.5476, 0.5476, 0.5714, 0.5714, 0.5714, 0.5714, 0.5952, 0.5952, 0.5952, 0.5952, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.6429, 0.6429, 0.6429, 0.6429, 0.6429, 0.6429, 0.6667, 0.6667, 0.6905, 0.6905, 0.6905, 0.6905, 0.6905, 0.6905, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7381, 0.7381, 0.7381, 0.7381, 0.7619, 0.7619, 0.7619, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8333, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]}, {"key": "p_xgb", "name": "XGBoost", "auc": 0.825, "lo": 0.762, "hi": 0.888, "fpr": [0, 0, 0, 0.0029, 0.0059, 0.0088, 0.0088, 0.0088, 0.0088, 0.0088, 0.0118, 0.0147, 0.0147, 0.0147, 0.0177, 0.0206, 0.0236, 0.0236, 0.0236, 0.0265, 0.0265, 0.0265, 0.0295, 0.0324, 0.0354, 0.0383, 0.0383, 0.0413, 0.0413, 0.0442, 0.0442, 0.0472, 0.0501, 0.0501, 0.0531, 0.056, 0.059, 0.059, 0.059, 0.0619, 0.0649, 0.0678, 0.0708, 0.0737, 0.0767, 0.0767, 0.0796, 0.0796, 0.0826, 0.0855, 0.0885, 0.0914, 0.0944, 0.0973, 0.1003, 0.1032, 0.1062, 0.1091, 0.1121, 0.1121, 0.1121, 0.115, 0.118, 0.1209, 0.1239, 0.1268, 0.1298, 0.1327, 0.1357, 0.1386, 0.1416, 0.1416, 0.1445, 0.1445, 0.1445, 0.1475, 0.1504, 0.1504, 0.1534, 0.1563, 0.1593, 0.1593, 0.1622, 0.1652, 0.1681, 0.1711, 0.1711, 0.174, 0.177, 0.177, 0.1799, 0.1829, 0.1858, 0.1888, 0.1917, 0.1947, 0.1976, 0.2006, 0.2035, 0.2035, 0.2065, 0.2094, 0.2124, 0.2153, 0.2183, 0.2212, 0.2212, 0.2242, 0.2271, 0.2301, 0.233, 0.236, 0.2389, 0.2419, 0.2448, 0.2478, 0.2507, 0.2537, 0.2566, 0.2596, 0.2596, 0.2625, 0.2655, 0.2684, 0.2714, 0.2743, 0.2773, 0.2802, 0.2832, 0.2861, 0.2891, 0.2891, 0.292, 0.295, 0.2979, 0.3009, 0.3038, 0.3068, 0.3097, 0.3127, 0.3156, 0.3186, 0.3215, 0.3245, 0.3274, 0.3304, 0.3333, 0.3363, 0.3392, 0.3422, 0.3451, 0.3481, 0.351, 0.351, 0.354, 0.3569, 0.3599, 0.3628, 0.3658, 0.3658, 0.3687, 0.3717, 0.3746, 0.3776, 0.3805, 0.3835, 0.3864, 0.3894, 0.3923, 0.3953, 0.3953, 0.3982, 0.4012, 0.4041, 0.4071, 0.41, 0.413, 0.4159, 0.4189, 0.4218, 0.4218, 0.4248, 0.4277, 0.4307, 0.4336, 0.4366, 0.4395, 0.4425, 0.4454, 0.4484, 0.4513, 0.4543, 0.4572, 0.4602, 0.4631, 0.4661, 0.469, 0.472, 0.4749, 0.4779, 0.4808, 0.4838, 0.4867, 0.4897, 0.4897, 0.4926, 0.4956, 0.4985, 0.5015, 0.5044, 0.5074, 0.5103, 0.5133, 0.5162, 0.5192, 0.5192, 0.5221, 0.5251, 0.528, 0.531, 0.5339, 0.5369, 0.5398, 0.5428, 0.5457, 0.5487, 0.5516, 0.5516, 0.5546, 0.5546, 0.5575, 0.5605, 0.5634, 0.5664, 0.5693, 0.5723, 0.5752, 0.5782, 0.5811, 0.5841, 0.587, 0.59, 0.5929, 0.5959, 0.5988, 0.6018, 0.6047, 0.6077, 0.6106, 0.6136, 0.6165, 0.6195, 0.6224, 0.6254, 0.6283, 0.6313, 0.6342, 0.6372, 0.6401, 0.6431, 0.646, 0.649, 0.6519, 0.6549, 0.6578, 0.6608, 0.6637, 0.6667, 0.6696, 0.6726, 0.6755, 0.6785, 0.6814, 0.6844, 0.6873, 0.6903, 0.6932, 0.6962, 0.6991, 0.7021, 0.705, 0.708, 0.7109, 0.7139, 0.7168, 0.7198, 0.7227, 0.7257, 0.7286, 0.7316, 0.7345, 0.7375, 0.7404, 0.7434, 0.7463, 0.7493, 0.7522, 0.7552, 0.7581, 0.7611, 0.764, 0.767, 0.7699, 0.7729, 0.7758, 0.7788, 0.7817, 0.7847, 0.7876, 0.7906, 0.7935, 0.7965, 0.7994, 0.8024, 0.8053, 0.8083, 0.8112, 0.8142, 0.8142, 0.8171, 0.8201, 0.823, 0.826, 0.8289, 0.8319, 0.8348, 0.8378, 0.8407, 0.8437, 0.8466, 0.8496, 0.8525, 0.8555, 0.8584, 0.8614, 0.8643, 0.8673, 0.8702, 0.8732, 0.8761, 0.8791, 0.882, 0.885, 0.8879, 0.8909, 0.8938, 0.8968, 0.8997, 0.9027, 0.9056, 0.9086, 0.9115, 0.9145, 0.9174, 0.9204, 0.9233, 0.9263, 0.9292, 0.9322, 0.9351, 0.9381, 0.941, 0.944, 0.9469, 0.9499, 0.9528, 0.9558, 0.9587, 0.9617, 0.9646, 0.9676, 0.9705, 0.9735, 0.9764, 0.9794, 0.9823, 0.9853, 0.9882, 0.9912, 0.9941, 0.9971, 1], "tpr": [0, 0.0238, 0.0476, 0.0476, 0.0476, 0.0476, 0.0714, 0.0952, 0.119, 0.1429, 0.1429, 0.1429, 0.1667, 0.1905, 0.1905, 0.1905, 0.1905, 0.2143, 0.2381, 0.2381, 0.2619, 0.2857, 0.2857, 0.2857, 0.2857, 0.2857, 0.3095, 0.3095, 0.3333, 0.3333, 0.3571, 0.3571, 0.3571, 0.381, 0.381, 0.381, 0.381, 0.4048, 0.4286, 0.4286, 0.4286, 0.4286, 0.4286, 0.4286, 0.4286, 0.4524, 0.4524, 0.4762, 0.4762, 0.4762, 0.4762, 0.4762, 0.4762, 0.4762, 0.4762, 0.4762, 0.4762, 0.4762, 0.4762, 0.5, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5476, 0.5476, 0.5714, 0.5952, 0.5952, 0.5952, 0.619, 0.619, 0.619, 0.619, 0.6429, 0.6429, 0.6429, 0.6429, 0.6429, 0.6667, 0.6667, 0.6667, 0.6905, 0.6905, 0.6905, 0.6905, 0.6905, 0.6905, 0.6905, 0.6905, 0.6905, 0.6905, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7381, 0.7381, 0.7381, 0.7381, 0.7381, 0.7381, 0.7381, 0.7381, 0.7381, 0.7381, 0.7381, 0.7381, 0.7381, 0.7381, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.7857, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8333, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.8571, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9524, 0.9524, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]}, {"key": "apache_iva_pred", "name": "APACHE IVa", "auc": 0.842, "lo": 0.785, "hi": 0.899, "fpr": [0, 0, 0.0029, 0.0029, 0.0029, 0.0059, 0.0088, 0.0088, 0.0118, 0.0147, 0.0147, 0.0147, 0.0147, 0.0177, 0.0177, 0.0177, 0.0177, 0.0206, 0.0206, 0.0206, 0.0236, 0.0265, 0.0295, 0.0295, 0.0324, 0.0354, 0.0383, 0.0413, 0.0413, 0.0442, 0.0472, 0.0501, 0.0501, 0.0501, 0.0501, 0.0531, 0.056, 0.059, 0.0619, 0.0649, 0.0678, 0.0678, 0.0678, 0.0708, 0.0708, 0.0737, 0.0767, 0.0796, 0.0796, 0.0826, 0.0855, 0.0885, 0.0914, 0.0914, 0.0944, 0.0973, 0.1003, 0.1032, 0.1062, 0.1091, 0.1121, 0.115, 0.115, 0.115, 0.115, 0.118, 0.1209, 0.1239, 0.1268, 0.1298, 0.1327, 0.1357, 0.1386, 0.1416, 0.1445, 0.1445, 0.1475, 0.1504, 0.1534, 0.1563, 0.1593, 0.1622, 0.1652, 0.1681, 0.1711, 0.174, 0.177, 0.177, 0.1799, 0.1829, 0.1858, 0.1888, 0.1888, 0.1917, 0.1947, 0.1947, 0.1976, 0.2006, 0.2035, 0.2035, 0.2065, 0.2094, 0.2124, 0.2153, 0.2183, 0.2212, 0.2242, 0.2242, 0.2271, 0.2301, 0.233, 0.236, 0.236, 0.2389, 0.2419, 0.2448, 0.2478, 0.2507, 0.2537, 0.2566, 0.2596, 0.2625, 0.2655, 0.2684, 0.2714, 0.2743, 0.2773, 0.2802, 0.2832, 0.2861, 0.2891, 0.292, 0.295, 0.295, 0.2979, 0.3009, 0.3038, 0.3038, 0.3068, 0.3097, 0.3127, 0.3156, 0.3156, 0.3156, 0.3156, 0.3186, 0.3215, 0.3245, 0.3274, 0.3304, 0.3333, 0.3363, 0.3392, 0.3422, 0.3451, 0.3481, 0.351, 0.354, 0.3569, 0.3599, 0.3628, 0.3658, 0.3687, 0.3717, 0.3717, 0.3746, 0.3776, 0.3805, 0.3835, 0.3864, 0.3894, 0.3923, 0.3953, 0.3982, 0.4012, 0.4041, 0.4071, 0.41, 0.413, 0.4159, 0.4189, 0.4218, 0.4248, 0.4277, 0.4307, 0.4307, 0.4336, 0.4366, 0.4395, 0.4425, 0.4454, 0.4484, 0.4513, 0.4543, 0.4572, 0.4602, 0.4631, 0.4661, 0.469, 0.472, 0.4749, 0.4779, 0.4808, 0.4838, 0.4867, 0.4897, 0.4926, 0.4956, 0.4985, 0.5015, 0.5044, 0.5074, 0.5103, 0.5133, 0.5162, 0.5192, 0.5221, 0.5251, 0.528, 0.531, 0.5339, 0.5369, 0.5398, 0.5428, 0.5457, 0.5487, 0.5516, 0.5546, 0.5575, 0.5605, 0.5634, 0.5664, 0.5693, 0.5723, 0.5752, 0.5752, 0.5782, 0.5811, 0.5841, 0.587, 0.59, 0.5929, 0.5959, 0.5988, 0.6018, 0.6047, 0.6077, 0.6106, 0.6136, 0.6136, 0.6165, 0.6195, 0.6224, 0.6254, 0.6283, 0.6283, 0.6313, 0.6342, 0.6372, 0.6401, 0.6431, 0.646, 0.649, 0.6519, 0.6549, 0.6578, 0.6608, 0.6637, 0.6667, 0.6696, 0.6726, 0.6755, 0.6785, 0.6814, 0.6844, 0.6873, 0.6903, 0.6932, 0.6962, 0.6991, 0.7021, 0.705, 0.708, 0.7109, 0.7139, 0.7168, 0.7198, 0.7227, 0.7257, 0.7286, 0.7316, 0.7345, 0.7375, 0.7404, 0.7434, 0.7463, 0.7493, 0.7522, 0.7552, 0.7581, 0.7611, 0.764, 0.767, 0.7699, 0.7729, 0.7758, 0.7788, 0.7817, 0.7847, 0.7876, 0.7906, 0.7935, 0.7965, 0.7994, 0.8024, 0.8053, 0.8083, 0.8112, 0.8142, 0.8171, 0.8201, 0.823, 0.826, 0.8289, 0.8319, 0.8348, 0.8378, 0.8407, 0.8437, 0.8466, 0.8496, 0.8525, 0.8555, 0.8584, 0.8614, 0.8643, 0.8673, 0.8702, 0.8732, 0.8761, 0.8791, 0.882, 0.885, 0.8879, 0.8909, 0.8938, 0.8968, 0.8997, 0.9027, 0.9056, 0.9086, 0.9115, 0.9145, 0.9174, 0.9204, 0.9233, 0.9263, 0.9292, 0.9322, 0.9351, 0.9381, 0.941, 0.944, 0.9469, 0.9499, 0.9528, 0.9558, 0.9587, 0.9617, 0.9646, 0.9676, 0.9705, 0.9735, 0.9764, 0.9794, 0.9823, 0.9853, 0.9882, 0.9912, 0.9941, 0.9971, 1], "tpr": [0, 0.0238, 0.0238, 0.0476, 0.0714, 0.0714, 0.0714, 0.0952, 0.0952, 0.0952, 0.119, 0.1429, 0.1667, 0.1667, 0.1905, 0.2143, 0.2381, 0.2381, 0.2619, 0.2857, 0.2857, 0.2857, 0.2857, 0.3095, 0.3095, 0.3095, 0.3095, 0.3095, 0.3333, 0.3333, 0.3333, 0.3333, 0.3571, 0.381, 0.4048, 0.4048, 0.4048, 0.4048, 0.4048, 0.4048, 0.4048, 0.4286, 0.4524, 0.4524, 0.4762, 0.4762, 0.4762, 0.4762, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5238, 0.5476, 0.5714, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.5952, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.619, 0.6429, 0.6429, 0.6429, 0.6429, 0.6429, 0.6667, 0.6667, 0.6667, 0.6905, 0.6905, 0.6905, 0.6905, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7143, 0.7381, 0.7381, 0.7381, 0.7381, 0.7381, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7619, 0.7857, 0.7857, 0.7857, 0.7857, 0.8095, 0.8095, 0.8095, 0.8095, 0.8095, 0.8333, 0.8571, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.881, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9048, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9286, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9524, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 0.9762, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]}]}, "shap": [{"name": "gcs", "label": "GCS 评分", "mean_abs_shap": 0.4763}, {"name": "age", "label": "年龄", "mean_abs_shap": 0.3235}, {"name": "resp_rate", "label": "呼吸频率", "mean_abs_shap": 0.2948}, {"name": "temperature", "label": "体温", "mean_abs_shap": 0.2708}, {"name": "creatinine_max_lab", "label": "肌酐", "mean_abs_shap": 0.2577}, {"name": "bun_max_lab", "label": "尿素氮", "mean_abs_shap": 0.2099}, {"name": "mech_vent", "label": "首日机械通气", "mean_abs_shap": 0.1982}, {"name": "heart_rate", "label": "心率", "mean_abs_shap": 0.1876}, {"name": "mean_bp", "label": "平均动脉压", "mean_abs_shap": 0.1224}, {"name": "bicarbonate_min", "label": "碳酸氢根", "mean_abs_shap": 0.0931}, {"name": "hemoglobin_min", "label": "血红蛋白", "mean_abs_shap": 0.0803}, {"name": "diabetes", "label": "糖尿病", "mean_abs_shap": 0.0758}, {"name": "wbc_max_lab", "label": "白细胞", "mean_abs_shap": 0.0537}, {"name": "glucose", "label": "血糖", "mean_abs_shap": 0.044}, {"name": "potassium_max", "label": "血钾", "mean_abs_shap": 0.0426}, {"name": "elective_surgery", "label": "择期手术", "mean_abs_shap": 0.0278}, {"name": "platelets_min", "label": "血小板", "mean_abs_shap": 0.0215}, {"name": "metastatic_cancer", "label": "转移性肿瘤", "mean_abs_shap": 0.005}, {"name": "male", "label": "男性", "mean_abs_shap": 0.0025}, {"name": "immunosuppression", "label": "免疫抑制", "mean_abs_shap": 0.0}, {"name": "cirrhosis", "label": "肝硬化", "mean_abs_shap": 0.0}, {"name": "hematologic_cancer", "label": "血液系统肿瘤", "mean_abs_shap": 0.0}], "sql": "CREATE OR REPLACE TABLE stay_base AS\nSELECT\n    p.patientunitstayid,\n    p.uniquepid,\n    p.gender,\n    -- eICU 把 90 岁及以上统一记为 '> 89'（去标识化处理）\n    CASE WHEN p.age = '> 89' THEN 90 ELSE TRY_CAST(p.age AS INTEGER) END AS age,\n    p.unitdischargeoffset / 60.0 AS icu_los_hours,\n    p.hospitaldischargestatus,\n    -- 同一患者可能多次住院、多次入 ICU：按出院年份、住院 ID、ICU 入住序号排序编号\n    ROW_NUMBER() OVER (\n        PARTITION BY p.uniquepid\n        ORDER BY p.hospitaldischargeyear, p.patienthealthsystemstayid, p.unitvisitnumber\n    ) AS stay_seq\nFROM patient p\nLEFT JOIN hospital h USING (hospitalid);"}</script>
+
+<script id="model-math">
+// 模型计算：与 R 的 rms 包完全一致（限制性立方样条，3 个节点，norm = 2）
+function rcsTerm(x, knots) {
+  const [t1, t2, t3] = knots;
+  const cube = (u) => Math.pow(Math.max(u, 0), 3);
+  return (cube(x - t1) - cube(x - t2) * (t3 - t1) / (t3 - t2) + cube(x - t3) * (t2 - t1) / (t3 - t2)) / Math.pow(t3 - t1, 2);
+}
+function contribution(model, v, x) {
+  const c = model.coefficients;
+  if (v.type === "binary") return c[v.name + "=是"] * x;
+  let s = c[v.name] * x;
+  if (v.type === "rcs") s += c[v.name + "'"] * rcsTerm(x, v.knots);
+  return s;
+}
+function linearPredictor(model, values) {
+  return model.variables.reduce((s, v) => s + contribution(model, v, values[v.name]), model.coefficients.Intercept);
+}
+function probability(lp) { return 1 / (1 + Math.exp(-lp)); }
+</script>
+
+<script>
+const D = JSON.parse(document.getElementById("model-data").textContent);
+const MODEL = D.model;
+const VARS = MODEL.variables;
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, text) => {
+  const n = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  if (text !== undefined) n.textContent = text;
+  return n;
+};
+
+// 各指标：输入范围、列线图刻度范围、监护仪通道
+const FIELDS = {
+  age:                { ch: "AGE",  color: "--ch-patient", label: "年龄", unit: "岁", min: 18, max: 90, step: 1, axis: [20, 90] },
+  mean_bp:            { ch: "MAP",  color: "--ch-abp", label: "平均动脉压（首日最差）", unit: "mmHg", min: 40, max: 160, step: 1, axis: [40, 160] },
+  resp_rate:          { ch: "RR",   color: "--ch-resp", label: "呼吸频率（首日最差）", unit: "次/分", min: 4, max: 60, step: 1, axis: [5, 55] },
+  temperature:        { ch: "TEMP", color: "--ch-temp", label: "体温（首日最差）", unit: "℃", min: 32, max: 40, step: 0.1, axis: [32, 40] },
+  gcs:                { ch: "GCS",  color: "--ch-neuro", label: "格拉斯哥昏迷评分", unit: "分", min: 3, max: 15, step: 1, axis: [3, 15] },
+  creatinine_max_lab: { ch: "CREA", color: "--ch-lab", label: "肌酐（24 小时最高）", unit: "mg/dL", min: 0.3, max: 8, step: 0.1, axis: [0.5, 8],
+                        extra: (x) => `${Math.round(x * 88.4)} µmol/L` },
+  bicarbonate_min:    { ch: "HCO₃", color: "--ch-lab", label: "碳酸氢根（24 小时最低）", unit: "mmol/L", min: 8, max: 40, step: 1, axis: [8, 36] },
+  mech_vent:          { ch: "VENT", color: "--ch-vent", label: "首日机械通气" },
+  diabetes:           { ch: "DM",   color: "--ch-patient", label: "糖尿病（本数据中与较低风险相关）" },
+};
+const SHORT = { age: "年龄", mean_bp: "平均动脉压", resp_rate: "呼吸频率", temperature: "体温", gcs: "GCS",
+  creatinine_max_lab: "肌酐", bicarbonate_min: "碳酸氢根", mech_vent: "机械通气", diabetes: "糖尿病" };
+
+// 示例患者（虚构，仅用于演示）
+const EXAMPLES = {
+  low:  { age: 66, mean_bp: 64, resp_rate: 26, temperature: 36.3, gcs: 14, creatinine_max_lab: 1.1, bicarbonate_min: 22, mech_vent: 0, diabetes: 0 },
+  mid:  { age: 72, mean_bp: 56, resp_rate: 30, temperature: 36.0, gcs: 13, creatinine_max_lab: 1.8, bicarbonate_min: 19, mech_vent: 0, diabetes: 0 },
+  high: { age: 76, mean_bp: 52, resp_rate: 32, temperature: 35.8, gcs: 10, creatinine_max_lab: 2.0, bicarbonate_min: 17, mech_vent: 1, diabetes: 0 },
+};
+const state = { ...EXAMPLES.mid };
+let waves = [];
+
+// 列线图计分（与 R 列线图一致）：每个变量在刻度范围内的最小贡献记 0 分，贡献跨度最大的变量记满 100 分
+const span = {};
+for (const v of VARS) {
+  const f = FIELDS[v.name];
+  const xs = v.type === "binary" ? [0, 1] : Array.from({ length: 401 }, (_, i) => f.axis[0] + (f.axis[1] - f.axis[0]) * i / 400);
+  const cs = xs.map((x) => contribution(MODEL, v, x));
+  span[v.name] = { min: Math.min(...cs), max: Math.max(...cs) };
+}
+const maxRange = Math.max(...Object.values(span).map((s) => s.max - s.min));
+const points = (v, x) => Math.max(0, (contribution(MODEL, v, x) - span[v.name].min) / maxRange * 100);
+const level = (p) => (p < 0.05 ? ["low", "低风险"] : p < 0.2 ? ["mid", "中等风险"] : ["high", "高风险"]);
+const fmt = (x, step) => (step < 1 ? x.toFixed(1) : String(Math.round(x)));
+
+// ---------------------------------------------------------------- 监护台参数块
+function buildTiles() {
+  const root = document.getElementById("tiles");
+  for (const v of VARS) {
+    const f = FIELDS[v.name];
+    const t = document.createElement("div");
+    t.className = "tile";
+    const head = `<div class="tile-head"><span class="ch" style="color:var(${f.color})">${f.ch}</span><span class="pts" id="pt-${v.name}"></span></div>
+      <div class="tile-label" id="lb-${v.name}">${f.label}</div>`;
+    if (v.type === "binary") {
+      t.innerHTML = `${head}
+        <div class="tile-val"><b id="vl-${v.name}" style="color:var(${f.color})"></b></div>
+        <div class="seg" role="group" aria-labelledby="lb-${v.name}">
+          <button type="button" id="in-${v.name}-0">否</button><button type="button" id="in-${v.name}-1">是</button>
+        </div>`;
+      for (const val of [0, 1]) t.querySelector(`#in-${v.name}-${val}`).addEventListener("click", () => setValue(v.name, val));
+    } else {
+      t.innerHTML = `${head}
+        <div class="tile-val"><b id="vl-${v.name}" style="color:var(${f.color})"></b><small>${f.unit}</small><em id="ex-${v.name}"></em></div>
+        <input type="range" id="in-${v.name}" min="${f.min}" max="${f.max}" step="${f.step}" aria-labelledby="lb-${v.name}" style="accent-color:var(${f.color})">
+        <div class="warn" id="wn-${v.name}"></div>`;
+      t.querySelector(`#in-${v.name}`).addEventListener("input", (e) => setValue(v.name, Number(e.target.value)));
+    }
+    root.appendChild(t);
+  }
+  document.querySelectorAll(".chip[data-example]").forEach((chip) =>
+    chip.addEventListener("click", () => { Object.assign(state, EXAMPLES[chip.dataset.example]); setValue(); }));
+  document.getElementById("dots").innerHTML = "<i></i>".repeat(100);
+}
+
+function setValue(name, x) {
+  if (name) state[name] = x;
+  document.querySelectorAll(".chip[data-example]").forEach((c) => {
+    const ex = EXAMPLES[c.dataset.example];
+    c.setAttribute("aria-pressed", String(VARS.every((v) => ex[v.name] === state[v.name])));
+  });
+  render();
+  waves.forEach((w) => w.redrawStatic());
+}
+
+function render() {
+  for (const v of VARS) {
+    const f = FIELDS[v.name];
+    const x = state[v.name];
+    document.getElementById(`pt-${v.name}`).textContent = `${points(v, x).toFixed(0)} 分`;
+    if (v.type === "binary") {
+      document.getElementById(`vl-${v.name}`).textContent = x ? "是" : "否";
+      for (const val of [0, 1]) document.getElementById(`in-${v.name}-${val}`).setAttribute("aria-pressed", String(x === val));
+    } else {
+      document.getElementById(`vl-${v.name}`).textContent = fmt(x, f.step);
+      document.getElementById(`in-${v.name}`).value = x;
+      document.getElementById(`ex-${v.name}`).textContent = f.extra ? f.extra(x) : "";
+      const [lo, , hi] = v.p01_median_p99;
+      document.getElementById(`wn-${v.name}`).textContent = x < lo || x > hi ? "超出建模数据常见范围" : "";
+    }
+  }
+  document.getElementById("wv-mean_bp").textContent = state.mean_bp;
+  document.getElementById("wv-resp_rate").textContent = state.resp_rate;
+
+  const p = probability(linearPredictor(MODEL, state));
+  const [lv, lvText] = level(p);
+  const risk = document.getElementById("risk");
+  risk.className = `risk lvl-${lv}`;
+  risk.innerHTML = p < 0.01 ? "&lt;1<small>%</small>" : `${(p * 100).toFixed(p < 0.1 ? 1 : 0)}<small>%</small>`;
+  const alarm = document.getElementById("alarm");
+  alarm.className = `alarm lvl-${lv} ${lv}`;
+  document.getElementById("alarm-text").textContent = lvText;
+  const avg = D.report.cohort.mortality;
+  document.getElementById("compare").textContent = `研究人群平均 ${(avg * 100).toFixed(1)}%，约为平均水平的 ${(p / avg).toFixed(1)} 倍`;
+
+  const n = Math.round(p * 100);
+  const dots = document.getElementById("dots");
+  dots.className = `dots lvl-${lv}`;
+  dots.querySelectorAll("i").forEach((d, i) => d.classList.toggle("on", i < n));
+  document.getElementById("dots-cap").textContent = `每 100 名相似的 ICU 患者中，约 ${n} 人在住院期间死亡`;
+
+  const rows = document.getElementById("points");
+  let total = 0;
+  rows.innerHTML = VARS.map((v) => {
+    const pt = points(v, state[v.name]);
+    total += pt;
+    return `<div class="points-row"><span>${SHORT[v.name]}</span><span class="points-bar"><b style="width:${pt}%;background:var(${FIELDS[v.name].color})"></b></span><span>${pt.toFixed(0)}</span></div>`;
+  }).join("");
+  document.getElementById("total").textContent = total.toFixed(0);
+
+  updateCurveMarkers();
+}
+
+// ---------------------------------------------------------------- 波形（示意）
+function setupWave(canvas, colorVar, sample) {
+  const ctx = canvas.getContext("2d");
+  let w = 0, h = 0, x = 0, prev = null, t = 0;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  function resize() {
+    w = canvas.clientWidth; h = canvas.clientHeight;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    x = 0; prev = null;
+    if (reduceMotion) drawStatic();
+  }
+  function drawStatic() {
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = css(colorVar); ctx.lineWidth = 1.6; ctx.beginPath();
+    for (let i = 0; i <= w; i++) {
+      const y = sample(i / 110) * (h - 12) + 6;
+      i ? ctx.lineTo(i, y) : ctx.moveTo(i, y);
+    }
+    ctx.stroke();
+  }
+  new ResizeObserver(resize).observe(canvas);
+  return {
+    redrawStatic: () => reduceMotion && drawStatic(),
+    step(dt) {
+      if (reduceMotion || !w) return;
+      const speed = 110;  // 每秒走纸像素
+      const color = css(colorVar);
+      let px = dt * speed;
+      ctx.lineWidth = 1.8; ctx.strokeStyle = color; ctx.lineCap = "round";
+      while (px > 0) {
+        const dx = Math.min(1, px); px -= dx; t += dx / speed; x += dx;
+        if (x > w) { x = 0; prev = null; }
+        const y = sample(t) * (h - 12) + 6;
+        ctx.clearRect(x, 0, 14, h);
+        if (prev) { ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(x, y); ctx.stroke(); }
+        prev = [x, y];
+      }
+    },
+  };
+}
+
+// 动脉压波形：快速上升 → 回落 → 重搏切迹 → 舒张期衰减；高度随 MAP 变化（纵轴 0–180 mmHg）
+function abpShape(ph) {
+  if (ph < 0.12) return Math.sin(ph / 0.12 * Math.PI / 2);
+  if (ph < 0.36) return 1 - (ph - 0.12) / 0.24 * 0.5;
+  if (ph < 0.40) return 0.5 - (ph - 0.36) / 0.04 * 0.08;
+  if (ph < 0.46) return 0.42 + (ph - 0.40) / 0.06 * 0.08;
+  return 0.5 * Math.exp(-(ph - 0.46) * 3.4);
+}
+const abpSample = (t) => {
+  const ph = (t * 80 / 60) % 1;  // 示意心率 80 次/分
+  const sys = state.mean_bp * 1.38, dia = state.mean_bp * 0.78;
+  const p = dia + (sys - dia) * abpShape(ph);
+  return 1 - Math.min(1, p / 180);
+};
+let respPhase = 0, lastT = 0;
+const respSample = (t) => {
+  respPhase += (t - lastT) * state.resp_rate / 60; lastT = t;
+  const s = Math.sin(respPhase * 2 * Math.PI);
+  return 0.5 - 0.4 * (s > 0 ? s : s * 0.8);
+};
+
+// ---------------------------------------------------------------- STEP 1：筛选漏斗、SQL、缺失率
+function buildChapter1() {
+  const steps = D.cohort_steps;
+  const max = steps[0].n;
+  document.getElementById("funnel").innerHTML = steps.map((s) => `
+    <div class="funnel-row">
+      <div class="funnel-bar"><b style="width:${s.n / max * 100}%"></b><span>${s.description}</span></div>
+      <div class="num">${s.n.toLocaleString("zh-CN")}<small>死亡 ${s.deaths}</small></div>
+    </div>`).join("");
+  const [dn, dd] = D.split.dev, [vn, vd] = D.split.val;
+  document.getElementById("split").innerHTML =
+    `<span><b>${dn.toLocaleString("zh-CN")}</b>例建模组（中西部、南部医院，死亡 ${dd}）</span><span><b>${vn}</b>例外部验证组（西部、东北部医院，死亡 ${vd}）</span>`;
+
+  const KW = /\b(CREATE|OR|REPLACE|TABLE|AS|SELECT|CASE|WHEN|THEN|ELSE|END|OVER|PARTITION|BY|ORDER|FROM|LEFT|JOIN|USING)\b/g;
+  const FN = /\b(ROW_NUMBER|TRY_CAST|INTEGER)\b/g;
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  document.getElementById("sql").innerHTML = D.sql.split("\n").map((line) => {
+    const i = line.indexOf("--");
+    const code = i >= 0 ? line.slice(0, i) : line;
+    const comment = i >= 0 ? line.slice(i) : "";
+    const hl = esc(code)
+      .replace(/'[^']*'/g, (m) => `<span class="st">${m}</span>`)
+      .replace(FN, '<span class="fn">$1</span>')
+      .replace(KW, '<span class="kw">$1</span>');
+    return hl + (comment ? `<span class="cm">${esc(comment)}</span>` : "");
+  }).join("\n");
+
+  document.getElementById("miss").innerHTML = D.missing.map((m) => {
+    const a = m["APACHE 表缺失率(%)"], s = m["SQL 提取缺失率(%)"];
+    return `<div class="miss-row"><span>${m["指标"]}</span><div class="miss-bars">
+      <div class="miss-bar"><span>APACHE 表</span><i style="width:${a * 3}%;background:var(--dim)"></i><span class="num">${a}%</span></div>
+      <div class="miss-bar"><span>SQL 提取</span><i style="width:${s * 3}%;background:var(--ch-lab)"></i><span class="num">${s}%</span></div>
+    </div></div>`;
+  }).join("");
+}
+
+// ---------------------------------------------------------------- STEP 2：RCS 曲线（由模型系数实时计算）
+const curveRefs = {};
+function buildCurves() {
+  const root = document.getElementById("curves");
+  const W = 280, H = 190, L = 36, R = 10, T = 14, B = 30;
+  for (const v of VARS.filter((v) => v.type === "rcs")) {
+    const f = FIELDS[v.name];
+    const ref = v.p01_median_p99[1];
+    const cref = contribution(MODEL, v, ref);
+    const xs = Array.from({ length: 161 }, (_, i) => f.axis[0] + (f.axis[1] - f.axis[0]) * i / 160);
+    const ors = xs.map((x) => Math.exp(contribution(MODEL, v, x) - cref));
+    const yLo = Math.min(0.5, ...ors) * 0.9, yHi = Math.max(2, ...ors) * 1.1;
+    const sx = (x) => L + (x - f.axis[0]) / (f.axis[1] - f.axis[0]) * (W - L - R);
+    const sy = (o) => T + (Math.log(yHi) - Math.log(o)) / (Math.log(yHi) - Math.log(yLo)) * (H - T - B);
+
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `<h3><span style="color:var(${f.color})">${SHORT[v.name]}</span> <span class="cap">${f.unit}</span></h3>`;
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `${SHORT[v.name]}与死亡风险的关系` });
+    for (const o of [0.25, 0.5, 1, 2, 4, 8, 16].filter((o) => o >= yLo && o <= yHi)) {
+      svg.append(el("line", { x1: L, x2: W - R, y1: sy(o), y2: sy(o), stroke: css("--line"), "stroke-dasharray": o === 1 ? "4 3" : "", "stroke-width": o === 1 ? 1.2 : 0.6 }));
+      svg.append(el("text", { x: L - 6, y: sy(o) + 3.5, "text-anchor": "end" }, String(o)));
+    }
+    const ticks = Array.from({ length: 5 }, (_, i) => f.axis[0] + (f.axis[1] - f.axis[0]) * i / 4);
+    for (const tx of ticks) svg.append(el("text", { x: sx(tx), y: H - 10, "text-anchor": "middle" }, fmt(tx, f.step < 1 || (f.axis[1] - f.axis[0]) < 10 ? 0.1 : 1)));
+    svg.append(el("text", { x: L - 30, y: T - 2, class: "zh" }, "OR"));
+    svg.append(el("path", { d: xs.map((x, i) => `${i ? "L" : "M"}${sx(x).toFixed(1)},${sy(ors[i]).toFixed(1)}`).join(""),
+      fill: "none", stroke: css(f.color), "stroke-width": 2.2 }));
+    const marker = el("circle", { r: 5, fill: css("--bg"), stroke: css(f.color), "stroke-width": 2.5 });
+    const label = el("text", { "text-anchor": "middle", style: `fill:${css("--ink")};font-size:12px` });
+    svg.append(marker, label);
+    card.append(svg);
+    const cap = document.createElement("p");
+    cap.className = "cap";
+    cap.textContent = `以中位数 ${fmt(ref, f.step)} ${f.unit} 为参照（OR = 1），对数刻度`;
+    card.append(cap);
+    root.append(card);
+    curveRefs[v.name] = { v, f, sx, sy, cref, marker, label, W, R, L };
+  }
+}
+function updateCurveMarkers() {
+  for (const { v, f, sx, sy, cref, marker, label, W, R, L } of Object.values(curveRefs)) {
+    const x = Math.min(f.axis[1], Math.max(f.axis[0], state[v.name]));
+    const o = Math.exp(contribution(MODEL, v, x) - cref);
+    const cx = sx(x), cy = sy(o);
+    marker.setAttribute("cx", cx); marker.setAttribute("cy", cy);
+    label.setAttribute("x", Math.min(W - R - 24, Math.max(L + 24, cx))); label.setAttribute("y", cy - 11);
+    label.textContent = `OR ${o.toFixed(2)}`;
+  }
+}
+
+// ---------------------------------------------------------------- STEP 3：ROC 曲线
+const MODEL_COLOR = { p_logistic: "--m-lr", p_rf: "--m-rf", p_xgb: "--m-xgb", apache_iva_pred: "--m-apache" };
+function buildRoc() {
+  const R = D.roc;
+  document.getElementById("roc-intro").textContent =
+    `验证组来自西部和东北部的医院，建模时完全没有用到。以下是其中 ${R.n} 例有 APACHE IVa 预测值的患者（死亡 ${R.deaths} 例），四个模型在同一批人上比较。`;
+  const svg = document.getElementById("roc");
+  const P = 40, S = 360 - P - 12;
+  const sx = (v) => P + v * S, sy = (v) => 12 + (1 - v) * S;
+  for (const g of [0, 0.25, 0.5, 0.75, 1]) {
+    svg.append(el("line", { x1: sx(g), x2: sx(g), y1: sy(0), y2: sy(1), stroke: css("--line"), "stroke-width": 0.6 }));
+    svg.append(el("line", { x1: sx(0), x2: sx(1), y1: sy(g), y2: sy(g), stroke: css("--line"), "stroke-width": 0.6 }));
+    svg.append(el("text", { x: sx(g), y: sy(0) + 16, "text-anchor": "middle" }, String(g)));
+    svg.append(el("text", { x: sx(0) - 8, y: sy(g) + 4, "text-anchor": "end" }, String(g)));
+  }
+  svg.append(el("line", { x1: sx(0), y1: sy(0), x2: sx(1), y2: sy(1), stroke: css("--dim"), "stroke-dasharray": "4 4" }));
+  svg.append(el("text", { x: sx(0.5), y: sy(0) + 32, "text-anchor": "middle", class: "zh" }, "1 − 特异度"));
+  const yl = el("text", { x: 0, y: 0, "text-anchor": "middle", class: "zh", transform: `translate(${sx(0) - 30},${sy(0.5)}) rotate(-90)` }, "灵敏度");
+  svg.append(yl);
+
+  const paths = {};
+  for (const c of R.curves) {
+    const d = c.fpr.map((f, i) => `${i ? "L" : "M"}${sx(f).toFixed(1)},${sy(c.tpr[i]).toFixed(1)}`).join("");
+    paths[c.key] = el("path", { d, fill: "none", stroke: css(MODEL_COLOR[c.key]), "stroke-width": 2, "stroke-linejoin": "round" });
+    svg.append(paths[c.key]);
+  }
+  const legend = document.getElementById("legend");
+  let focus = "p_logistic";
+  function applyFocus() {
+    for (const c of R.curves) {
+      const on = c.key === focus;
+      paths[c.key].setAttribute("stroke-width", on ? 3.2 : 1.6);
+      paths[c.key].setAttribute("opacity", on ? 1 : 0.45);
+      document.getElementById(`lg-${c.key}`).setAttribute("aria-pressed", String(on));
+    }
+    svg.append(paths[focus]);
+  }
+  legend.innerHTML = R.curves.map((c) => `
+    <button type="button" id="lg-${c.key}" aria-pressed="false">
+      <i style="background:var(${MODEL_COLOR[c.key]})"></i><span>${c.name}</span>
+      <span class="auc">${c.auc.toFixed(3)}<small>${c.lo.toFixed(3)}–${c.hi.toFixed(3)}</small></span>
+    </button>`).join("");
+  for (const c of R.curves) document.getElementById(`lg-${c.key}`).addEventListener("click", () => { focus = c.key; applyFocus(); });
+  applyFocus();
+  document.getElementById("roc-note").textContent =
+    `列线图模型与 APACHE IVa 的差异无统计学意义（配对 DeLong 检验 P = ${R.p_vs_apache}）。APACHE IVa 需要 100 多个变量（含上百类入院诊断），列线图只用 9 个可从 HIS / LIS 自动提取的指标。点击图例可突出显示对应曲线。`;
+}
+
+// ---------------------------------------------------------------- STEP 4：SHAP 重要性
+function buildShap() {
+  const inModel = new Set(VARS.map((v) => v.name));
+  const top = D.shap.slice(0, 12);
+  const hits = D.shap.slice(0, 10).filter((s) => inModel.has(s.name)).length;
+  document.getElementById("shap-intro").textContent =
+    `XGBoost 使用全部 ${D.shap.length} 个候选变量，不经过人工筛选。按 SHAP 值排序后，前 10 个变量里有 ${hits} 个正是列线图模型的变量。两种完全不同的方法得到了一致的结论。`;
+  const max = top[0].mean_abs_shap;
+  document.getElementById("shap").innerHTML = top.map((s) => {
+    const inside = inModel.has(s.name);
+    return `<div class="shap-row ${inside ? "in" : "out"}"><span>${s.label}</span>
+      <i style="width:${s.mean_abs_shap / max * 100}%;background:var(${inside ? "--m-lr" : "--dim"})"></i>
+      <span class="num">${s.mean_abs_shap.toFixed(2)}</span></div>`;
+  }).join("");
+}
+
+// ---------------------------------------------------------------- 研究方法
+function buildMethods() {
+  document.getElementById("methods").innerHTML = D.report.methods
+    .map(([k, v]) => `<div class="method"><b>${k}</b><span>${v}</span></div>`).join("")
+    + `<div class="method"><b>模型对比</b><span>随机森林、XGBoost 使用全部 22 个变量并交叉验证调参，外部验证中均未显著优于列线图模型</span></div>`
+    + `<div class="method"><b>网页计算</b><span>本页计算公式与 R 模型逐位一致，12 个校验样例最大误差 2×10⁻¹⁰</span></div>`;
+}
+
+// ---------------------------------------------------------------- 启动
+buildTiles();
+buildChapter1();
+buildCurves();
+buildRoc();
+buildShap();
+buildMethods();
+render();
+
+waves = [
+  setupWave(document.getElementById("wave-abp"), "--ch-abp", abpSample),
+  setupWave(document.getElementById("wave-resp"), "--ch-resp", respSample),
+];
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  waves.forEach((w) => w.step(dt));
+  requestAnimationFrame(frame);
+}
+if (!reduceMotion) requestAnimationFrame(frame);
+</script>
