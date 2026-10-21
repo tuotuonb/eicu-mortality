@@ -3,6 +3,9 @@
 > 个人数据工程与医学统计项目。完整走一遍医院信息中心的数据工作流：
 > **临床问题 → SQL 提数 → 数据质控 → 医学统计 → 预测模型 → 可视化交付**。
 
+**在线演示**：[ICU 死亡风险监护台](https://tuotuonb.github.io/eicu-mortality/)（项目展示版）·
+[简洁版风险计算器](https://tuotuonb.github.io/eicu-mortality/dashboard/index.html)
+
 ## 1. 研究问题
 
 ICU 患者病情重、变化快，早期识别高死亡风险患者有助于分配医疗资源、和家属沟通预后。
@@ -241,12 +244,12 @@ Rscript R/00_setup.R
 
 ## 8. 网页
 
-两个单文件网页，用浏览器直接打开即可：
+两个单文件网页，已通过 GitHub Pages 发布，也可以下载后用浏览器直接打开：
 
-- **`dashboard/showcase.html`：ICU 死亡风险监护台（项目展示版）**。首屏是床旁监护仪风格的风险计算器，
+- **[`dashboard/showcase.html`](https://tuotuonb.github.io/eicu-mortality/dashboard/showcase.html)：ICU 死亡风险监护台（项目展示版）**。首屏是床旁监护仪风格的风险计算器，
   动脉压、呼吸波形随输入变化；往下依次展示患者筛选流程与 SQL、缺失率对比、由模型系数实时计算的非线性曲线
   （标出当前患者位置）、四个模型的交互式 ROC 对比和 SHAP 重要性。
-- **`dashboard/index.html`：简洁版风险计算器**。输入入 ICU 首日的 9 项指标，
+- **[`dashboard/index.html`](https://tuotuonb.github.io/eicu-mortality/dashboard/index.html)：简洁版风险计算器**。输入入 ICU 首日的 9 项指标，
   实时显示预测死亡风险、百人图和每个指标的列线图得分。
 
 - 网页里的计算公式（含限制性立方样条）与 R 模型逐位一致：12 个校验样例的最大误差为 2×10⁻¹⁰
