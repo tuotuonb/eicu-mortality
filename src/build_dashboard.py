@@ -1,22 +1,46 @@
 """第 8 步：生成网页。
 
-把模型系数（results/model/）和性能结果（results/tables/）写进网页模板，每个模板生成两个文件：
-完整网页（可直接用浏览器打开，或发布到 GitHub Pages），以及不含 <html>/<head> 外壳、用于发布为 Claude Artifact 的版本。
+把模型系数（results/model/）和性能结果（results/tables/）写进网页模板。
 
-  dashboard/template.html          → index.html / calculator.html          简洁版风险计算器
-  dashboard/showcase_template.html → showcase.html / showcase_artifact.html  监护仪风格的项目展示页
+  dashboard/template.html          → dashboard/index.html（完整网页）、dashboard/calculator.html（Artifact 版）
+                                     简洁版风险计算器
+  dashboard/showcase_template.html → dashboard/showcase.html（在线版，下载按钮指向 GitHub Pages 上的文件）
+                                     dashboard/showcase_artifact.html（Artifact 版，不显示下载区）
+                                     dist/showcase_offline.html（离线包用，下载按钮指向同一文件夹里的文件）
+
+所有页面都是单文件：数据、图表、列线图图片都内嵌在页面里，只有字体从 Google Fonts 异步加载（加载不到时用系统字体）。
 """
+import base64
+import io
 import json
 import textwrap
 
 import pandas as pd
+from PIL import Image
 
 from data_quality import missing_comparison
 from db import PROCESSED, ROOT
 
 DASH = ROOT / "dashboard"
+DIST = ROOT / "dist"
 TABLES = ROOT / "results" / "tables"
+FIGURES = ROOT / "results" / "figures"
 MODEL_DIR = ROOT / "results" / "model"
+
+REPORT_NOTE = "全部图表、表格与方法说明，按临床论文格式排版，可直接打印"
+DOWNLOADS = {
+    "online": [
+        {"label": "研究报告（PDF）", "note": REPORT_NOTE,
+         "href": "../downloads/eicu-research-report.pdf", "download": False},
+        {"label": "离线包（ZIP）", "note": "展示页离线版、简洁版计算器、研究报告和源代码，断网也能使用",
+         "href": "../downloads/eicu-offline-package.zip", "download": True},
+    ],
+    "offline": [
+        {"label": "研究报告（PDF）", "note": REPORT_NOTE, "href": "研究报告.pdf", "download": False},
+        {"label": "源代码（ZIP）", "note": "SQL、R、Python 全部源码与 README", "href": "源代码.zip", "download": True},
+    ],
+    "artifact": [],
+}
 
 
 def auc_only(text: str) -> str:
@@ -92,21 +116,87 @@ def sql_excerpt() -> str:
     return textwrap.dedent("\n".join(keep)) + "\nFROM patient p\nLEFT JOIN hospital h USING (hospitalid);"
 
 
-def render(template: str, data: dict, fragment_name: str, standalone_name: str) -> None:
+def baseline_rows() -> list:
+    """Table 1 中最能说明差异的几行：存活 vs 死亡。"""
+    t1 = pd.read_csv(TABLES / "table1_by_outcome.csv", encoding="utf-8-sig", dtype=str).fillna("")
+    wanted = ["n", "年龄", "GCS 评分", "平均动脉压", "肌酐（", "乳酸（最高值）", "首日机械通气", "APACHE IV 评分"]
+    rows = []
+    for w in wanted:
+        hit = t1[t1["变量"].str.startswith(w)]
+        if hit.empty:
+            continue
+        r = hit.iloc[0]
+        label = (r["变量"].replace(" (median [IQR])", "").replace(" = 是 (%)", "（%）")
+                 .replace("n", "例数", 1) if w == "n" else
+                 r["变量"].replace(" (median [IQR])", "").replace(" = 是 (%)", "（%）"))
+        rows.append({"label": label, "alive": r["存活"], "dead": r["死亡"], "p": r["p"]})
+    return rows
+
+
+def forest_rows() -> list:
+    t3 = pd.read_csv(TABLES / "table3_multivariable.csv", encoding="utf-8-sig")
+    return [{"label": r["中文名"].split("（")[0], "contrast": r["对比"],
+             "or": float(r["OR"]), "lo": float(r["CI下限"]), "hi": float(r["CI上限"])} for _, r in t3.iterrows()]
+
+
+def model_summary(model: dict) -> dict:
+    t2 = pd.read_csv(TABLES / "table2_univariate.csv", encoding="utf-8-sig", dtype=str)
+    significant = t2["P"].map(lambda p: p == "<0.001" or (p not in ("", "nan") and float(p) < 0.05))
+    return {"n_candidates": len(t2), "n_univariate": int(significant.sum()), "n_final": len(model["variables"])}
+
+
+def nomogram_data_uri() -> str:
+    """列线图缩小后转成 WebP，直接内嵌进页面。"""
+    img = Image.open(FIGURES / "fig3_nomogram.png").convert("RGB")
+    img = img.resize((1400, round(img.height * 1400 / img.width)), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, "WEBP", quality=82, method=6)
+    return "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def calibration_series() -> list:
+    cal = json.loads((MODEL_DIR / "calibration.json").read_text(encoding="utf-8"))
+    out = []
+    for key, name, color in [("B：本研究模型", "本研究模型", "--m-lr"), ("B：APACHE IVa", "APACHE IVa", "--m-apache")]:
+        c = cal[key]
+        step = max(1, len(c["pred"]) // 120)
+        idx = list(range(0, len(c["pred"]), step)) + [len(c["pred"]) - 1]
+        out.append({"name": name, "color": color, "pred": [c["pred"][i] for i in idx], "obs": [c["obs"][i] for i in idx]})
+    return out
+
+
+def calibration_note() -> str:
+    perf = pd.read_csv(TABLES / "table4_performance.csv", encoding="utf-8-sig")
+    lr = perf[(perf["数据集"] == "验证组") & (perf["模型"] == "本研究模型")].iloc[0]
+    ap = perf[(perf["数据集"] == "验证组（有 APACHE 预测者）") & (perf["模型"] == "APACHE IVa")].iloc[0]
+    return (f"外部验证组中，本模型的校准斜率为 {lr['校准斜率']}（理想值为 1），APACHE IVa 为 {ap['校准斜率']}。"
+            "斜率小于 1 说明本模型的预测偏极端，这与样本量有限有关；在新医院使用前，应先用当地数据重新校准。")
+
+
+def dca_series() -> list:
+    dca = json.loads((MODEL_DIR / "dca_validation.json").read_text(encoding="utf-8"))
+    style = {"本研究模型": ("--m-lr", 2.4, ""), "APACHE IVa": ("--m-apache", 2.2, ""),
+             "全部干预": ("--dim", 1.6, "5 4"), "均不干预": ("--muted", 1.4, "")}
+    return [{"name": n, "color": style[n][0], "width": style[n][1], "dash": style[n][2],
+             "threshold": dca[n]["threshold"], "net_benefit": dca[n]["net_benefit"]} for n in style if n in dca]
+
+
+def render(template: str, data: dict, fragment_path=None, standalone_path=None) -> None:
     # 防止 JSON 里的 "</" 提前结束 <script> 标签
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     fragment = (DASH / template).read_text(encoding="utf-8").replace("__DATA_JSON__", payload)
-    (DASH / fragment_name).write_text(fragment, encoding="utf-8")
-
-    head, body = fragment.split("</style>", 1)
-    standalone = (
-        '<!doctype html>\n<html lang="zh-CN">\n<head>\n<meta charset="utf-8">\n'
-        '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
-        f"{head}</style>\n</head>\n<body>{body}</body>\n</html>\n"
-    )
-    (DASH / standalone_name).write_text(standalone, encoding="utf-8")
-    print(f"已生成 {DASH / standalone_name}")
-    print(f"已生成 {DASH / fragment_name}")
+    if fragment_path:
+        fragment_path.write_text(fragment, encoding="utf-8")
+        print(f"已生成 {fragment_path}")
+    if standalone_path:
+        head, body = fragment.split("</style>", 1)
+        standalone = (
+            '<!doctype html>\n<html lang="zh-CN">\n<head>\n<meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
+            f"{head}</style>\n</head>\n<body>{body}</body>\n</html>\n"
+        )
+        standalone_path.write_text(standalone, encoding="utf-8")
+        print(f"已生成 {standalone_path}（{len(standalone.encode()) / 1024:.0f} KB）")
 
 
 def main() -> None:
@@ -114,7 +204,7 @@ def main() -> None:
     for key in ("performance", "test_cases"):
         model.pop(key, None)
     report = build_report()
-    render("template.html", {"model": model, "report": report}, "calculator.html", "index.html")
+    render("template.html", {"model": model, "report": report}, DASH / "calculator.html", DASH / "index.html")
 
     df = pd.read_csv(PROCESSED / "analysis_dataset.csv")
     steps = pd.read_csv(TABLES / "cohort_steps.csv", encoding="utf-8-sig")
@@ -127,11 +217,21 @@ def main() -> None:
         },
         "cohort_steps": steps[["step", "description", "n", "deaths"]].to_dict(orient="records"),
         "missing": missing_comparison(df).to_dict(orient="records"),
+        "baseline": baseline_rows(),
+        "forest": forest_rows(),
+        "model_summary": model_summary(model),
+        "nomogram": nomogram_data_uri(),
         "roc": json.loads((MODEL_DIR / "roc_validation.json").read_text(encoding="utf-8")),
+        "calibration": calibration_series(),
+        "cal_note": calibration_note(),
+        "dca": dca_series(),
         "shap": json.loads((MODEL_DIR / "shap_importance.json").read_text(encoding="utf-8")),
         "sql": sql_excerpt(),
     }
-    render("showcase_template.html", showcase, "showcase_artifact.html", "showcase.html")
+    DIST.mkdir(exist_ok=True)
+    render("showcase_template.html", {**showcase, "downloads": DOWNLOADS["online"]}, None, DASH / "showcase.html")
+    render("showcase_template.html", {**showcase, "downloads": DOWNLOADS["artifact"]}, DASH / "showcase_artifact.html")
+    render("showcase_template.html", {**showcase, "downloads": DOWNLOADS["offline"]}, None, DIST / "showcase_offline.html")
 
 
 if __name__ == "__main__":

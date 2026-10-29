@@ -12,3 +12,6 @@ data/processed/
 # 含患者级数据的中间结果不公开（运行 run_all.py 可重新生成）
 results/model/model.rds
 results/model/predictions_*.csv
+
+# 构建产物（离线包暂存、研究报告中间文件）
+dist/

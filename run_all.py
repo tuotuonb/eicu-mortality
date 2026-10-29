@@ -1,4 +1,4 @@
-"""一键运行全流程：下载数据 → SQL 提数 → 数据质控 → 基线表 → 建模与验证 → 机器学习对比 → 计算器网页。
+"""一键运行全流程：下载数据 → SQL 提数 → 数据质控 → 基线表 → 建模与验证 → 机器学习对比 → 网页 → 研究报告 → 离线包。
 
 用法（在项目根目录）：.venv/Scripts/python.exe run_all.py
 """
@@ -21,7 +21,9 @@ STEPS = [
     ("预测模型构建与验证", [RSCRIPT, "R/02_model.R"]),
     ("机器学习模型与 SHAP", [PY, "src/ml_models.py"]),
     ("四个模型对比", [RSCRIPT, "R/03_ml_compare.R"]),
-    ("生成风险计算器网页", [PY, "src/build_dashboard.py"]),
+    ("生成网页", [PY, "src/build_dashboard.py"]),
+    ("生成研究报告 PDF", [PY, "src/build_report.py"]),
+    ("打包离线材料", [PY, "src/build_package.py"]),
 ]
 
 for i, (title, cmd) in enumerate(STEPS, 1):

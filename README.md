@@ -3,8 +3,11 @@
 > 个人数据工程与医学统计项目。完整走一遍医院信息中心的数据工作流：
 > **临床问题 → SQL 提数 → 数据质控 → 医学统计 → 预测模型 → 可视化交付**。
 
-**在线演示**：[ICU 死亡风险监护台](https://tuotuonb.github.io/eicu-mortality/)（项目展示版）·
-[简洁版风险计算器](https://tuotuonb.github.io/eicu-mortality/dashboard/index.html)
+**在线演示**：[ICU 死亡风险监护台](https://tuotuonb.github.io/eicu-mortality/)（含风险计算器与全部主要结果）·
+[研究报告 PDF](https://tuotuonb.github.io/eicu-mortality/downloads/eicu-research-report.pdf) ·
+[离线包 ZIP](https://tuotuonb.github.io/eicu-mortality/downloads/eicu-offline-package.zip)
+
+> 在中国大陆，GitHub 页面上的图片可能加载不出来。展示页和研究报告不依赖 GitHub 的图片服务，可以直接查看。
 
 ## 1. 研究问题
 
@@ -105,7 +108,9 @@ eicu-mortality/
 │   ├── build_dataset.py        执行 SQL，生成分析数据集
 │   ├── data_quality.py         数据质控报告
 │   ├── ml_models.py            随机森林、XGBoost、SHAP
-│   └── build_dashboard.py      生成风险计算器网页
+│   ├── build_dashboard.py      生成网页（在线版、离线版、Artifact 版）
+│   ├── build_report.py         生成中文研究报告 PDF
+│   └── build_package.py        打包离线材料
 ├── R/                      R：统计分析与建模
 │   ├── utils.R                 共用的绘图主题与工具函数
 │   ├── 00_setup.R              安装依赖包
@@ -117,7 +122,8 @@ eicu-mortality/
 │   ├── tables/                 Table 1–6（CSV，Excel 可直接打开）
 │   ├── figures/                森林图、列线图、RCS、ROC、校准曲线、DCA、SHAP
 │   └── model/                  模型系数与样条节点、各模型预测值
-└── dashboard/              风险计算器网页（template.html → index.html）
+├── dashboard/              网页模板与生成结果（showcase.html 为项目展示页）
+└── downloads/              研究报告 PDF 与离线包 ZIP（展示页上的下载按钮指向这里）
 ```
 
 ## 6. 如何复现
@@ -131,7 +137,17 @@ Rscript R/00_setup.R
 .venv/Scripts/python.exe run_all.py
 ```
 
-`run_all.py` 会自动下载数据（并做 SHA256 校验），然后依次执行提数、质控和统计分析。
+`run_all.py` 会自动下载数据（并做 SHA256 校验），然后依次执行提数、质控、统计分析、机器学习对比，
+最后生成网页、研究报告 PDF（需要 Microsoft Edge）和离线包。
+
+**中国大陆网络**：安装依赖时可以使用清华镜像，速度更快：
+
+```bash
+.venv/Scripts/python.exe -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+R 包可在 `R/00_setup.R` 中把 `repos` 改为 `https://mirrors.tuna.tsinghua.edu.cn/CRAN/`。
+数据从 PhysioNet 下载，国内速度较慢，可能需要多试几次。
 
 ## 7. 主要结果
 
@@ -258,6 +274,16 @@ Rscript R/00_setup.R
 - 模型系数和性能数字由 `src/build_dashboard.py` 从分析结果自动写入，模型更新后重新运行即可同步
 - 肌酐同时显示国内常用的 µmol/L 单位；输入超出建模数据常见范围时会给出提示
 
+展示页还包含基线对比表、森林图、列线图、校准曲线和决策曲线，图表都由页面原生绘制或内嵌，不引用外部图片；
+字体异步加载，Google Fonts 无法访问时自动使用系统字体，不会阻塞页面显示。
+
+**离线材料**（`src/build_package.py` 生成）：
+
+| 文件 | 内容 |
+|---|---|
+| [`downloads/eicu-research-report.pdf`](downloads/eicu-research-report.pdf) | 中文研究报告，按 TRIPOD 规范整理全部方法、图表与表格（13 页） |
+| [`downloads/eicu-offline-package.zip`](downloads/eicu-offline-package.zip) | 展示页离线版、简洁版计算器、研究报告、源代码，断网也能使用 |
+
 ## 9. 进度
 
 - [x] 数据下载与校验
@@ -268,7 +294,8 @@ Rscript R/00_setup.R
 - [x] 列线图、Bootstrap 内部验证、校准曲线、ROC、DCA
 - [x] 地理外部验证，与 APACHE IVa 对比
 - [x] 机器学习模型对比（随机森林、XGBoost）与 SHAP 可解释性
-- [x] 风险计算器网页
+- [x] 风险计算器网页与项目展示页
+- [x] 中文研究报告 PDF 与离线包
 
 ## 10. 医院视角与数据合规
 

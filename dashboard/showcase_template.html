@@ -159,7 +159,7 @@ pre.sql { margin: 0; overflow-x: auto; background: var(--glass); border: 1px sol
 .miss-row { display: grid; gap: 4px; }
 .miss-row > span { font-size: 13px; }
 .miss-bars { display: grid; gap: 3px; }
-.miss-bar { display: grid; grid-template-columns: 4.8em minmax(0, 1fr) 3.6em; gap: 8px; align-items: center; font-size: 11.5px; color: var(--muted); }
+.miss-bar { display: grid; grid-template-columns: 6em minmax(0, 1fr) 3.6em; gap: 8px; align-items: center; font-size: 11.5px; color: var(--muted); }
 .miss-bar i { display: block; height: 9px; border-radius: 2px; }
 .miss-bar .num { font-size: 15px; text-align: right; color: var(--ink); }
 
@@ -187,8 +187,29 @@ svg .zh { font-family: var(--font-body); }
 .key span { display: inline-flex; align-items: center; gap: 6px; }
 .key i { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
 
+.sub-head { display: grid; gap: 6px; max-width: 70ch; margin-top: 10px; }
+.sub-head h3 { font-size: 18px; font-weight: 500; }
+.sub-head p { color: var(--muted); }
+.table-wrap { overflow-x: auto; }
+table.t1 { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+table.t1 th, table.t1 td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+table.t1 th { color: var(--muted); font-weight: 500; font-size: 12.5px; }
+table.t1 td.v { font-family: var(--font-num); font-size: 15px; font-variant-numeric: tabular-nums; }
+table.t1 tr:first-child td { color: var(--muted); }
+.paper { background: #F4F6F8; border-color: #F4F6F8; }
+.paper h3 { color: #15212D; }
+.paper .cap { color: #4A5966; }
+.paper img { display: block; width: 100%; height: auto; border-radius: 4px; }
+.legend-inline { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); }
+.legend-inline span { display: inline-flex; align-items: center; gap: 6px; }
+.legend-inline i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.downloads { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.dl { display: grid; gap: 4px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); text-decoration: none; }
+.dl:hover { border-color: var(--ch-lab); }
+.dl b { font-size: 15px; font-weight: 500; color: var(--ch-lab); }
+.dl span { font-size: 13px; color: var(--muted); }
 .methods { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-.method { border-top: 2px solid var(--line); padding-top: 10px; display: grid; gap: 4px; }
+.method { border-top: 2px solid var(--line); padding-top: 10px; display: grid; gap: 4px; align-content: start; }
 .method b { font-size: 13px; color: var(--ch-lab); font-weight: 500; }
 .method span { font-size: 13.5px; color: var(--muted); }
 footer { border-top: 1px solid var(--line); padding-block: 20px 36px; font-size: 12.5px; color: var(--muted); }
@@ -276,13 +297,34 @@ footer strong { color: var(--ink); font-weight: 500; }
         <p class="cap">APACHE 表只记录评分用的一个值，很多患者是空的；原始检验表保留了全部结果。按入科前 6 小时至入科后 24 小时的时间窗口重新提取后，缺失大幅减少。</p>
         <div class="miss" id="miss"></div>
       </div>
+      <div class="card">
+        <h3>存活与死亡患者入 ICU 首日的差异</h3>
+        <div class="table-wrap"><table class="t1" id="t1"></table></div>
+        <p class="cap">连续变量为中位数 [四分位间距]，Mann-Whitney U 检验；分类变量为 n (%)，卡方检验。</p>
+      </div>
     </section>
 
     <section class="chapter" aria-labelledby="c2">
       <div class="chapter-head">
         <p class="step"><b>STEP 2</b> · 建模</p>
-        <h2 id="c2">血压、体温、肌酐和碳酸氢根，都不是直线关系</h2>
-        <p>这几项指标与死亡风险呈 U 型或倒 U 型。模型用限制性立方样条刻画，下面的曲线由模型系数实时计算，圆点是监护台上当前患者的位置。</p>
+        <h2 id="c2">9 个床旁指标，画成一张列线图</h2>
+        <p id="model-intro"></p>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h3>多因素 Logistic 回归：OR 与 95% CI</h3>
+          <svg id="forest" role="img" aria-label="多因素 Logistic 回归森林图"></svg>
+          <p class="cap">横轴为对数刻度，虚线为 OR = 1。U 型变量分别给出低值端和高值端相对正常值的 OR。</p>
+        </div>
+        <div class="card paper">
+          <h3>列线图</h3>
+          <img id="nomogram" alt="院内死亡风险列线图：按各指标取值读出得分，相加后对应死亡风险">
+          <p class="cap">按患者各指标的取值在上方「得分」轴读分，相加得总分，再在最下方读出院内死亡风险。页面顶部监护台显示的「列线图总得分」就是按这张图计算的。</p>
+        </div>
+      </div>
+      <div class="sub-head">
+        <h3>其中 4 个指标与风险不是直线关系</h3>
+        <p>血压、体温、肌酐和碳酸氢根与死亡风险呈 U 型或倒 U 型，模型用限制性立方样条刻画。下面的曲线由模型系数实时计算，圆点是监护台上当前患者的位置。</p>
       </div>
       <div class="curves" id="curves"></div>
     </section>
@@ -301,6 +343,20 @@ footer strong { color: var(--ink); font-weight: 500; }
           <p class="cap" id="roc-note"></p>
         </div>
       </div>
+      <div class="grid2">
+        <div class="card">
+          <h3>校准曲线：预测风险与实际死亡比例是否一致</h3>
+          <div class="legend-inline" id="cal-legend"></div>
+          <svg id="calibration" viewBox="0 0 360 330" role="img" aria-label="外部验证组校准曲线"></svg>
+          <p class="cap" id="cal-note"></p>
+        </div>
+        <div class="card">
+          <h3>决策曲线：用模型做决策有没有临床获益</h3>
+          <div class="legend-inline" id="dca-legend"></div>
+          <svg id="dca" viewBox="0 0 360 330" role="img" aria-label="外部验证组决策曲线"></svg>
+          <p class="cap">横轴是「风险超过多少就采取干预」的阈值，纵轴是净获益。曲线高于「全部干预」和「均不干预」两条参考线，说明在该阈值范围内使用模型有临床获益。</p>
+        </div>
+      </div>
     </section>
 
     <section class="chapter" aria-labelledby="c4">
@@ -314,6 +370,15 @@ footer strong { color: var(--ink); font-weight: 500; }
         <div class="shap" id="shap"></div>
         <p class="cap">平均 |SHAP| 值：该变量对 XGBoost 预测对数几率的平均影响大小（建模组）。</p>
       </div>
+    </section>
+
+    <section class="chapter" id="materials" aria-labelledby="c6" hidden>
+      <div class="chapter-head">
+        <p class="step"><b>MATERIALS</b> · 离线材料</p>
+        <h2 id="c6">研究报告和源代码，可以直接下载</h2>
+        <p>研究报告按临床论文格式整理了全部图表、表格和方法说明；离线包里的展示页断网也能打开。</p>
+      </div>
+      <div class="downloads" id="downloads"></div>
     </section>
 
     <section class="chapter" aria-labelledby="c5">
@@ -710,6 +775,111 @@ function buildShap() {
   }).join("");
 }
 
+// ---------------------------------------------------------------- STEP 1 补充：存活 vs 死亡基线对比
+function buildBaseline() {
+  document.getElementById("t1").innerHTML =
+    "<thead><tr><th>指标</th><th>存活</th><th>死亡</th><th>P</th></tr></thead><tbody>" +
+    D.baseline.map((r) => `<tr><td>${r.label}</td><td class="v">${r.alive}</td><td class="v">${r.dead}</td><td class="v">${r.p}</td></tr>`).join("") +
+    "</tbody>";
+}
+
+// ---------------------------------------------------------------- STEP 2 补充：森林图、列线图
+// 手机屏幕上把 OR 数值移到左侧第三行，图变窄后文字才不会缩得看不清
+const NARROW = matchMedia("(max-width: 560px)");
+
+function drawForest() {
+  const rows = D.forest;
+  const compact = NARROW.matches;
+  const W = compact ? 360 : 540, rowH = compact ? 52 : 34, T = 6, B = 30, L = compact ? 124 : 150, R = compact ? 10 : 104;
+  const H = T + rows.length * rowH + B;
+  const svg = document.getElementById("forest");
+  svg.replaceChildren();
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const lo = Math.min(...rows.map((r) => r.lo)) * 0.85, hi = Math.max(...rows.map((r) => r.hi)) * 1.15;
+  const sx = (v) => L + (Math.log(v) - Math.log(lo)) / (Math.log(hi) - Math.log(lo)) * (W - L - R);
+  for (const t of [0.25, 0.5, 1, 2, 4, 8].filter((t) => t >= lo && t <= hi)) {
+    svg.append(el("line", { x1: sx(t), x2: sx(t), y1: T, y2: H - B + 4, stroke: css("--line"),
+      "stroke-width": t === 1 ? 1.3 : 0.6, "stroke-dasharray": t === 1 ? "4 3" : "" }));
+    svg.append(el("text", { x: sx(t), y: H - B + 18, "text-anchor": "middle" }, String(t)));
+  }
+  rows.forEach((r, i) => {
+    const y = T + i * rowH + rowH / 2;
+    const ci = `${r.or.toFixed(2)} (${r.lo.toFixed(2)}–${r.hi.toFixed(2)})`;
+    svg.append(el("text", { x: 0, y: compact ? y - 11 : y - 2, class: "zh", style: `fill:${css("--ink")};font-size:12.5px` }, r.label));
+    svg.append(el("text", { x: 0, y: compact ? y + 4 : y + 12, class: "zh", style: "font-size:10.5px" }, r.contrast));
+    svg.append(el("line", { x1: sx(r.lo), x2: sx(r.hi), y1: y, y2: y, stroke: css("--m-lr"), "stroke-width": 1.6 }));
+    svg.append(el("rect", { x: sx(r.or) - 4, y: y - 4, width: 8, height: 8, fill: css("--m-lr") }));
+    if (compact) svg.append(el("text", { x: 0, y: y + 19, style: `fill:${css("--ink")};font-size:11.5px` }, ci));
+    else svg.append(el("text", { x: W, y: y + 4, "text-anchor": "end", style: `fill:${css("--ink")};font-size:12px` }, ci));
+  });
+}
+
+function buildForest() {
+  drawForest();
+  NARROW.addEventListener("change", drawForest);
+  const s = D.model_summary;
+  document.getElementById("model-intro").textContent =
+    `多重插补处理缺失值后，${s.n_candidates} 个候选变量经单因素分析筛出 ${s.n_univariate} 个，再经 AIC 向后逐步回归保留 ${s.n_final} 个。森林图给出各指标的独立影响，列线图可以手工查分。`;
+  document.getElementById("nomogram").src = D.nomogram;
+}
+
+// ---------------------------------------------------------------- STEP 3 补充：校准曲线、决策曲线
+function drawLines(svg, series, o) {
+  const L = 44, R = 12, T = 10, B = 40, W = 360, H = 330;
+  const sx = (v) => L + v / o.xMax * (W - L - R);
+  const sy = (v) => T + (o.yMax - v) / (o.yMax - o.yMin) * (H - T - B);
+  for (const t of o.xTicks) {
+    svg.append(el("line", { x1: sx(t), x2: sx(t), y1: sy(o.yMin), y2: sy(o.yMax), stroke: css("--line"), "stroke-width": 0.6 }));
+    svg.append(el("text", { x: sx(t), y: sy(o.yMin) + 16, "text-anchor": "middle" }, String(t)));
+  }
+  for (const t of o.yTicks) {
+    svg.append(el("line", { x1: sx(0), x2: sx(o.xMax), y1: sy(t), y2: sy(t), stroke: css("--line"), "stroke-width": t === 0 ? 1 : 0.6 }));
+    svg.append(el("text", { x: sx(0) - 7, y: sy(t) + 4, "text-anchor": "end" }, String(t)));
+  }
+  if (o.diagonal) svg.append(el("line", { x1: sx(0), y1: sy(0), x2: sx(o.xMax), y2: sy(Math.min(o.xMax, o.yMax)),
+    stroke: css("--dim"), "stroke-dasharray": "4 4" }));
+  svg.append(el("text", { x: sx(o.xMax / 2), y: H - 6, "text-anchor": "middle", class: "zh" }, o.xLabel));
+  svg.append(el("text", { "text-anchor": "middle", class: "zh", transform: `translate(11,${sy((o.yMin + o.yMax) / 2)}) rotate(-90)` }, o.yLabel));
+  const clipId = svg.id + "-clip";
+  const clip = el("clipPath", { id: clipId });
+  clip.append(el("rect", { x: sx(0), y: sy(o.yMax), width: sx(o.xMax) - sx(0), height: sy(o.yMin) - sy(o.yMax) }));
+  svg.append(clip);
+  for (const s of series) {
+    svg.append(el("path", { d: s.x.map((x, i) => `${i ? "L" : "M"}${sx(x).toFixed(1)},${sy(s.y[i]).toFixed(1)}`).join(""),
+      fill: "none", stroke: css(s.color), "stroke-width": s.width || 2.2, "clip-path": `url(#${clipId})`,
+      "stroke-dasharray": s.dash || "" }));
+  }
+}
+function legendHtml(series) {
+  return series.map((s) => `<span><i style="background:var(${s.color})"></i>${s.name}</span>`).join("");
+}
+function buildCalibration() {
+  const series = D.calibration.map((c) => ({ name: c.name, color: c.color, x: c.pred, y: c.obs }));
+  document.getElementById("cal-legend").innerHTML = legendHtml(series) + `<span><i style="background:var(--dim)"></i>理想校准</span>`;
+  drawLines(document.getElementById("calibration"), series, {
+    xMax: 0.8, yMin: 0, yMax: 0.8, xTicks: [0, 0.2, 0.4, 0.6, 0.8], yTicks: [0, 0.2, 0.4, 0.6, 0.8],
+    diagonal: true, xLabel: "预测死亡概率", yLabel: "实际死亡比例" });
+  document.getElementById("cal-note").textContent = D.cal_note;
+}
+function buildDca() {
+  const series = D.dca.map((c) => ({ name: c.name, color: c.color, x: c.threshold, y: c.net_benefit, width: c.width, dash: c.dash }));
+  document.getElementById("dca-legend").innerHTML = legendHtml(series);
+  const top = Math.max(...D.dca.filter((c) => c.name !== "全部干预").flatMap((c) => c.net_benefit)) * 1.15;
+  const yMax = Math.ceil(top * 50) / 50;
+  drawLines(document.getElementById("dca"), series, {
+    xMax: 0.5, yMin: -0.02, yMax, xTicks: [0, 0.1, 0.2, 0.3, 0.4, 0.5],
+    yTicks: Array.from({ length: Math.round(yMax / 0.02) + 1 }, (_, i) => +(i * 0.02).toFixed(2)),
+    diagonal: false, xLabel: "阈概率", yLabel: "净获益" });
+}
+
+// ---------------------------------------------------------------- 离线材料下载
+function buildDownloads() {
+  if (!D.downloads.length) return;
+  document.getElementById("materials").hidden = false;
+  document.getElementById("downloads").innerHTML = D.downloads.map((d) =>
+    `<a class="dl" href="${d.href}"${d.download ? " download" : ' target="_blank" rel="noopener"'}><b>${d.label}</b><span>${d.note}</span></a>`).join("");
+}
+
 // ---------------------------------------------------------------- 研究方法
 function buildMethods() {
   document.getElementById("methods").innerHTML = D.report.methods
@@ -721,9 +891,14 @@ function buildMethods() {
 // ---------------------------------------------------------------- 启动
 buildTiles();
 buildChapter1();
+buildBaseline();
+buildForest();
 buildCurves();
 buildRoc();
+buildCalibration();
+buildDca();
 buildShap();
+buildDownloads();
 buildMethods();
 render();
 

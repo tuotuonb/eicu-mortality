@@ -332,6 +332,12 @@ p_cal <- ggplot(cal_df, aes(pred, obs, colour = 曲线)) +
   guides(colour = guide_legend(nrow = 2)) +
   theme_cn()
 save_plot(p_cal, "results/figures/fig6_calibration.png", 9, 5.2)
+# 导出校准曲线坐标，供展示网页原生绘制
+write_json(lapply(split(cal_df, cal_df$曲线), function(d) list(
+  name = as.character(d$曲线[1]), panel = d$panel[1],
+  pred = round(d$pred, 4), obs = round(d$obs, 4)
+)), "results/model/calibration.json", auto_unbox = TRUE)
+cat("已生成 results/model/calibration.json\n")
 
 # ---------------------------------------------------------------- 6c. 决策曲线（DCA）
 dca_df <- function(d, panel) {
@@ -357,6 +363,12 @@ p_dca <- ggplot(dca_all, aes(threshold, net_benefit, colour = label)) +
   labs(x = "阈概率", y = "净获益", colour = NULL, title = "决策曲线分析（DCA）") +
   theme_cn()
 save_plot(p_dca, "results/figures/fig7_dca.png", 9, 4.8)
+# 导出外部验证组的决策曲线，供展示网页原生绘制
+dca_val <- dca_all[dca_all$panel == "B  外部验证组", ]
+write_json(lapply(split(dca_val, dca_val$label), function(d) list(
+  name = as.character(d$label[1]), threshold = d$threshold, net_benefit = round(d$net_benefit, 5)
+)), "results/model/dca_validation.json", auto_unbox = TRUE)
+cat("已生成 results/model/dca_validation.json\n")
 
 # ---------------------------------------------------------------- 7. 导出模型（供风险计算器网页使用）
 knots <- lapply(intersect(final_vars, nonlinear), function(v) fit$Design$parms[[v]])
