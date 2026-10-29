@@ -3,13 +3,13 @@
 > 个人数据工程与医学统计项目。完整走一遍医院信息中心的数据工作流：
 > **临床问题 → SQL 提数 → 数据质控 → 医学统计 → 预测模型 → 可视化交付**。
 
-**在线演示**：[ICU 死亡风险监护台](https://tuotuonb.github.io/eicu-mortality/)（含风险计算器与全部主要结果）·
-[研究报告 PDF](downloads/eicu-research-report.pdf) ·
-[离线包 ZIP](downloads/eicu-offline-package.zip)
+**在线演示**：[ICU 死亡风险监护台](https://tuotuonb.github.io/eicu-mortality/)（含风险计算器与全部主要结果）
 
-**国内镜像**：[码云 gitee.com/tuotuobunni/eicu-mortality](https://gitee.com/tuotuobunni/eicu-mortality)（代码、README 图表和研究报告都可以在国内直接访问）
+**国内镜像**：[码云 gitee.com/tuotuobunni/eicu-mortality](https://gitee.com/tuotuobunni/eicu-mortality)（与 GitHub 仓库内容相同）
 
-> 在中国大陆，GitHub 页面可能打不开或图片加载不出来，可以改看上面的码云镜像。离线包里的展示页断网也能使用。
+[![ICU 死亡风险监护台：调整入 ICU 首日指标，实时估算院内死亡风险](docs/images/showcase.png)](https://tuotuonb.github.io/eicu-mortality/)
+
+> 在中国大陆，GitHub 页面可能打不开或图片加载不出来，可以改看上面的码云镜像。
 
 ## 1. 研究问题
 
@@ -111,21 +111,22 @@ eicu-mortality/
 │   ├── data_quality.py         数据质控报告
 │   ├── ml_models.py            随机森林、XGBoost、SHAP
 │   ├── build_dashboard.py      生成网页（在线版、离线版、Artifact 版）
-│   ├── build_report.py         生成中文研究报告 PDF
-│   └── build_package.py        打包离线材料
+│   ├── build_report.py         生成中文研究报告 PDF（只在本机生成）
+│   └── build_package.py        打包离线材料（只在本机生成）
 ├── R/                      R：统计分析与建模
 │   ├── utils.R                 共用的绘图主题与工具函数
 │   ├── 00_setup.R              安装依赖包
 │   ├── 01_table1.R             基线特征表
 │   ├── 02_model.R              插补、建模、列线图、内部 / 外部验证
 │   └── 03_ml_compare.R         四个模型在外部验证组的对比
-├── docs/hospital_mapping.md eICU 表与国内医院信息系统的对应关系
+├── docs/
+│   ├── hospital_mapping.md     eICU 表与国内医院信息系统的对应关系
+│   └── images/                 README 用的展示页截图
 ├── results/                输出的表格、图表、报告
 │   ├── tables/                 Table 1–6（CSV，Excel 可直接打开）
 │   ├── figures/                森林图、列线图、RCS、ROC、校准曲线、DCA、SHAP
 │   └── model/                  模型系数与样条节点、各模型预测值
-├── dashboard/              网页模板与生成结果（showcase.html 为项目展示页）
-└── downloads/              研究报告 PDF 与离线包 ZIP（展示页上的下载按钮指向这里）
+└── dashboard/              网页模板与生成结果（showcase.html 为项目展示页）
 ```
 
 ## 6. 如何复现
@@ -140,7 +141,7 @@ Rscript R/00_setup.R
 ```
 
 `run_all.py` 会自动下载数据（并做 SHA256 校验），然后依次执行提数、质控、统计分析、机器学习对比，
-最后生成网页、研究报告 PDF（需要 Microsoft Edge）和离线包。
+最后生成网页、研究报告 PDF（需要 Microsoft Edge）和离线包。研究报告和离线包输出到 `dist/`，不提交到仓库。
 
 **中国大陆网络**：安装依赖时可以使用清华镜像，速度更快：
 
@@ -279,12 +280,8 @@ R 包可在 `R/00_setup.R` 中把 `repos` 改为 `https://mirrors.tuna.tsinghua.
 展示页还包含基线对比表、森林图、列线图、校准曲线和决策曲线，图表都由页面原生绘制或内嵌，不引用外部图片；
 字体异步加载，Google Fonts 无法访问时自动使用系统字体，不会阻塞页面显示。
 
-**离线材料**（`src/build_package.py` 生成）：
-
-| 文件 | 内容 |
-|---|---|
-| [`downloads/eicu-research-report.pdf`](downloads/eicu-research-report.pdf) | 中文研究报告，按 TRIPOD 规范整理全部方法、图表与表格（13 页） |
-| [`downloads/eicu-offline-package.zip`](downloads/eicu-offline-package.zip) | 展示页离线版、简洁版计算器、研究报告、源代码，断网也能使用 |
+**离线材料**：`src/build_report.py` 按 TRIPOD 规范生成中文研究报告 PDF（13 页），`src/build_package.py`
+把展示页离线版、简洁版计算器、研究报告和源代码打成离线包，断网也能使用。两者都只在本机生成，不在网上公开。
 
 ## 9. 进度
 
@@ -297,7 +294,7 @@ R 包可在 `R/00_setup.R` 中把 `repos` 改为 `https://mirrors.tuna.tsinghua.
 - [x] 地理外部验证，与 APACHE IVa 对比
 - [x] 机器学习模型对比（随机森林、XGBoost）与 SHAP 可解释性
 - [x] 风险计算器网页与项目展示页
-- [x] 中文研究报告 PDF 与离线包
+- [x] 中文研究报告 PDF 与离线包（本机生成）
 
 ## 10. 医院视角与数据合规
 

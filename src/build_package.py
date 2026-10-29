@@ -1,10 +1,9 @@
-"""第 10 步：打包离线材料。
+"""第 10 步：打包离线材料。离线包含研究报告，只在本机生成，不提交到仓库、不在网上公开。
 
-公开版（发布到 GitHub Pages 供下载，不含任何个人信息）：
-  downloads/eicu-offline-package.zip   展示页离线版、简洁版计算器、研究报告、源代码
-  downloads/eicu-research-report.pdf   研究报告
+默认：
+  dist/eICU项目离线包.zip   展示页离线版、简洁版计算器、研究报告、源代码
 
-个人版（另外放入简历等个人材料，只保存在本机，不要提交到仓库）：
+个人版（另外放入简历等个人材料）：
   .venv/Scripts/python.exe src/build_package.py --personal <输出 zip> --extra <简历.pdf> [<面试讲解稿.pdf> ...]
 """
 import argparse
@@ -16,7 +15,6 @@ from pathlib import Path
 from db import ROOT
 
 DIST = ROOT / "dist"
-DOWNLOADS = ROOT / "downloads"
 FOLDER = "eICU项目离线包"
 
 GUIDE = """eICU 院内死亡风险预测项目 · 离线包
@@ -28,6 +26,7 @@ GUIDE = """eICU 院内死亡风险预测项目 · 离线包
   源代码.zip           SQL、R、Python 全部源码与 README（不含数据；运行 run_all.py 会下载开放数据并复现全部结果）
 
 在线版本：https://tuotuonb.github.io/eicu-mortality/
+源代码（国内镜像）：https://gitee.com/tuotuobunni/eicu-mortality
 
 本项目仅用于科研与教学演示，不能用于临床决策。
 数据来自 eICU Collaborative Research Database Demo v2.0.1（PhysioNet，开放获取）。
@@ -35,10 +34,10 @@ GUIDE = """eICU 院内死亡风险预测项目 · 离线包
 
 
 def source_zip(path: Path) -> None:
-    """按 git 管理的文件打包源代码（已提交的文件和尚未提交但不被忽略的新文件），不含下载区和数据。"""
+    """按 git 管理的文件打包源代码（已提交的文件和尚未提交但不被忽略的新文件），不含数据。"""
     out = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
                          cwd=ROOT, capture_output=True, check=True).stdout.decode("utf-8")
-    files = sorted({f for f in out.split("\0") if f and not f.startswith("downloads/")})
+    files = sorted({f for f in out.split("\0") if f})
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
         for f in files:
             if (ROOT / f).is_file():
@@ -67,17 +66,11 @@ def package(out_zip: Path, extras: list[Path]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--personal", type=Path, help="个人版输出路径（不传则生成公开版到 downloads/）")
+    parser.add_argument("--personal", type=Path, help="个人版输出路径（不传则生成到 dist/）")
     parser.add_argument("--extra", type=Path, nargs="*", default=[], help="个人版额外放入的文件，如简历")
     args = parser.parse_args()
 
-    if args.personal:
-        package(args.personal, args.extra)
-        return
-    DOWNLOADS.mkdir(exist_ok=True)
-    package(DOWNLOADS / "eicu-offline-package.zip", [])
-    shutil.copy(DIST / "研究报告.pdf", DOWNLOADS / "eicu-research-report.pdf")
-    print(f"已生成 {DOWNLOADS / 'eicu-research-report.pdf'}")
+    package(args.personal or DIST / f"{FOLDER}.zip", args.extra)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@
 
   dashboard/template.html          → dashboard/index.html（完整网页）、dashboard/calculator.html（Artifact 版）
                                      简洁版风险计算器
-  dashboard/showcase_template.html → dashboard/showcase.html（在线版，下载按钮指向 GitHub Pages 上的文件）
+  dashboard/showcase_template.html → dashboard/showcase.html（在线版，不显示下载区；研究报告只在离线包里提供）
                                      dashboard/showcase_artifact.html（Artifact 版，不显示下载区）
                                      dist/showcase_offline.html（离线包用，下载按钮指向同一文件夹里的文件）
 
@@ -27,16 +27,12 @@ TABLES = ROOT / "results" / "tables"
 FIGURES = ROOT / "results" / "figures"
 MODEL_DIR = ROOT / "results" / "model"
 
-REPORT_NOTE = "全部图表、表格与方法说明，按临床论文格式排版，可直接打印"
+# 研究报告不在网上公开，只放进离线包；在线版和 Artifact 版都不显示下载区
 DOWNLOADS = {
-    "online": [
-        {"label": "研究报告（PDF）", "note": REPORT_NOTE,
-         "href": "../downloads/eicu-research-report.pdf", "download": False},
-        {"label": "离线包（ZIP）", "note": "展示页离线版、简洁版计算器、研究报告和源代码，断网也能使用",
-         "href": "../downloads/eicu-offline-package.zip", "download": True},
-    ],
+    "online": [],
     "offline": [
-        {"label": "研究报告（PDF）", "note": REPORT_NOTE, "href": "研究报告.pdf", "download": False},
+        {"label": "研究报告（PDF）", "note": "全部图表、表格与方法说明，按临床论文格式排版，可直接打印",
+         "href": "研究报告.pdf", "download": False},
         {"label": "源代码（ZIP）", "note": "SQL、R、Python 全部源码与 README", "href": "源代码.zip", "download": True},
     ],
     "artifact": [],
