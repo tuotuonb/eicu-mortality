@@ -4,10 +4,12 @@
 > **临床问题 → SQL 提数 → 数据质控 → 医学统计 → 预测模型 → 可视化交付**。
 
 **在线演示**：[ICU 死亡风险监护台](https://tuotuonb.github.io/eicu-mortality/)（含风险计算器与全部主要结果）·
-[研究报告 PDF](https://tuotuonb.github.io/eicu-mortality/downloads/eicu-research-report.pdf) ·
-[离线包 ZIP](https://tuotuonb.github.io/eicu-mortality/downloads/eicu-offline-package.zip)
+[研究报告 PDF](downloads/eicu-research-report.pdf) ·
+[离线包 ZIP](downloads/eicu-offline-package.zip)
 
-> 在中国大陆，GitHub 页面上的图片可能加载不出来。展示页和研究报告不依赖 GitHub 的图片服务，可以直接查看。
+**国内镜像**：[码云 gitee.com/tuotuobunni/eicu-mortality](https://gitee.com/tuotuobunni/eicu-mortality)（代码、README 图表和研究报告都可以在国内直接访问）
+
+> 在中国大陆，GitHub 页面可能打不开或图片加载不出来，可以改看上面的码云镜像。离线包里的展示页断网也能使用。
 
 ## 1. 研究问题
 
