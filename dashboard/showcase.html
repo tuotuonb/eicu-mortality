@@ -5,9 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ICU 死亡风险监护台</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700&display=swap">
+<script>
+// 字体异步加载：Google Fonts 在国内无法访问时不阻塞页面显示，直接使用系统字体
+(function () {
+  var l = document.createElement("link");
+  l.rel = "stylesheet";
+  l.href = "https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700&display=swap";
+  document.head.appendChild(l);
+})();
+</script>
 <style>
 /* 布局：全宽的床旁监护仪（波形通道 + 参数块 + 风险读数）→ 居中的项目叙事：数据、非线性、对比、SHAP、方法
    单一深色主题：监护仪屏幕本身就是深色，各通道颜色沿用监护仪惯例（动脉压红、呼吸黄、体温白、神经紫、检验青、通气绿） */

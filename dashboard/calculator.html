@@ -1,8 +1,14 @@
 <title>ICU 院内死亡风险计算器</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap">
+<script>
+// 字体异步加载：Google Fonts 在国内无法访问时不阻塞页面显示，直接使用系统字体
+(function () {
+  var l = document.createElement("link");
+  l.rel = "stylesheet";
+  l.href = "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap";
+  document.head.appendChild(l);
+})();
+</script>
 <style>
 /* 布局：标题区 → 左侧首日指标输入 / 右侧风险结果（窄屏上下排列）→ 模型说明 → 使用限制 */
 :root {
