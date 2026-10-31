@@ -5,8 +5,9 @@
 
 **在线演示**：[ICU 死亡风险监护台](https://tuotuonb.github.io/eicu-mortality/)（含风险计算器与全部主要结果）
 
-**离线版**：[国内下载（码云）](https://gitee.com/tuotuobunni/eicu-mortality/raw/main/dashboard/icu-monitor-offline.zip) ·
-[GitHub 下载](https://tuotuonb.github.io/eicu-mortality/dashboard/icu-monitor-offline.zip)（67 KB，解压后双击 HTML 文件即可使用，不需要联网）
+**离线版（国内推荐）**：[国内下载](https://gitee.com/tuotuobunni/eicu-mortality/raw/main/dashboard/icu-monitor-offline.zip)（码云，67 KB） ·
+[GitHub 下载](https://tuotuonb.github.io/eicu-mortality/dashboard/icu-monitor-offline.zip)。
+下载后解压，双击「ICU死亡风险监护台.html」即可用浏览器打开，不需要联网。
 
 **国内镜像**：[码云 gitee.com/tuotuobunni/eicu-mortality](https://gitee.com/tuotuobunni/eicu-mortality)（与 GitHub 仓库内容相同）
 
