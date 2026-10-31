@@ -5,6 +5,7 @@
   dashboard/template.html          → dashboard/index.html（完整网页）、dashboard/calculator.html（Artifact 版）
                                      简洁版风险计算器
   dashboard/showcase_template.html → dashboard/showcase.html（在线版，不显示下载区；研究报告只在离线包里提供）
+                                     dashboard/icu-monitor-offline.zip（在线版打包，供国内从码云下载后断网打开）
                                      dashboard/showcase_artifact.html（Artifact 版，不显示下载区）
                                      dist/showcase_offline.html（离线包用，下载按钮指向同一文件夹里的文件）
 
@@ -14,6 +15,8 @@ import base64
 import io
 import json
 import textwrap
+import zipfile
+from pathlib import Path
 
 import pandas as pd
 from PIL import Image
@@ -195,6 +198,38 @@ def render(template: str, data: dict, fragment_path=None, standalone_path=None) 
         print(f"已生成 {standalone_path}（{len(standalone.encode()) / 1024:.0f} KB）")
 
 
+OFFLINE_GUIDE = """ICU 死亡风险监护台（离线版）
+
+双击「ICU死亡风险监护台.html」，用浏览器（Edge、Chrome 等）打开即可使用，不需要联网。
+页面包含风险计算器、患者筛选流程、建模结果、外部验证和 SHAP 分析。
+
+在线版本：https://tuotuonb.github.io/eicu-mortality/
+源代码（国内镜像）：https://gitee.com/tuotuobunni/eicu-mortality
+
+本项目仅用于科研与教学演示，不能用于临床决策。
+"""
+
+
+def offline_zip(page: Path, out: Path) -> None:
+    """把在线版展示页打成 ZIP，方便国内从码云下载后断网打开。
+
+    码云不能直接运行网页（HTML 按纯文本返回），ZIP 会被浏览器直接下载。
+    固定文件时间戳，内容不变时重新生成的 ZIP 也逐字节相同，避免无意义的提交。
+    """
+    folder = "ICU死亡风险监护台（离线版）"
+    files = {
+        "ICU死亡风险监护台.html": page.read_bytes(),
+        "使用说明.txt": OFFLINE_GUIDE.replace("\n", "\r\n").encode("utf-8-sig"),
+    }
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, data in files.items():
+            info = zipfile.ZipInfo(f"{folder}/{name}", date_time=(2026, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            z.writestr(info, data)
+    print(f"已生成 {out}（{out.stat().st_size / 1024:.0f} KB）")
+
+
 def main() -> None:
     model = json.loads((MODEL_DIR / "model.json").read_text(encoding="utf-8"))
     for key in ("performance", "test_cases"):
@@ -226,6 +261,7 @@ def main() -> None:
     }
     DIST.mkdir(exist_ok=True)
     render("showcase_template.html", {**showcase, "downloads": DOWNLOADS["online"]}, None, DASH / "showcase.html")
+    offline_zip(DASH / "showcase.html", DASH / "icu-monitor-offline.zip")
     render("showcase_template.html", {**showcase, "downloads": DOWNLOADS["artifact"]}, DASH / "showcase_artifact.html")
     render("showcase_template.html", {**showcase, "downloads": DOWNLOADS["offline"]}, None, DIST / "showcase_offline.html")
 

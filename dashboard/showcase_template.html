@@ -128,6 +128,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .story { padding-block: 56px 72px; }
 .story .inner { max-width: 1120px; display: grid; gap: 72px; }
 .chapter { display: grid; gap: 22px; }
+/* .chapter 设了 display，会盖掉 hidden 属性的默认隐藏 */
+[hidden] { display: none !important; }
 .chapter-head { display: grid; gap: 8px; max-width: 70ch; }
 .step { font-family: var(--font-num); font-size: 14px; letter-spacing: .14em; color: var(--muted); }
 .step b { color: var(--ch-lab); font-weight: 600; }

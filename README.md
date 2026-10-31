@@ -5,11 +5,14 @@
 
 **在线演示**：[ICU 死亡风险监护台](https://tuotuonb.github.io/eicu-mortality/)（含风险计算器与全部主要结果）
 
+**离线版**：[国内下载（码云）](https://gitee.com/tuotuobunni/eicu-mortality/raw/main/dashboard/icu-monitor-offline.zip) ·
+[GitHub 下载](https://tuotuonb.github.io/eicu-mortality/dashboard/icu-monitor-offline.zip)（67 KB，解压后双击 HTML 文件即可使用，不需要联网）
+
 **国内镜像**：[码云 gitee.com/tuotuobunni/eicu-mortality](https://gitee.com/tuotuobunni/eicu-mortality)（与 GitHub 仓库内容相同）
 
 [![ICU 死亡风险监护台：调整入 ICU 首日指标，实时估算院内死亡风险](docs/images/showcase.png)](https://tuotuonb.github.io/eicu-mortality/)
 
-> 在中国大陆，GitHub 页面可能打不开或图片加载不出来，可以改看上面的码云镜像。
+> 在中国大陆，GitHub 页面可能打不开或图片加载不出来，可以改看上面的码云镜像，或从码云下载离线版。
 
 ## 1. 研究问题
 
@@ -126,7 +129,7 @@ eicu-mortality/
 │   ├── tables/                 Table 1–6（CSV，Excel 可直接打开）
 │   ├── figures/                森林图、列线图、RCS、ROC、校准曲线、DCA、SHAP
 │   └── model/                  模型系数与样条节点、各模型预测值
-└── dashboard/              网页模板与生成结果（showcase.html 为项目展示页）
+└── dashboard/              网页模板与生成结果（showcase.html 为项目展示页，icu-monitor-offline.zip 为离线版）
 ```
 
 ## 6. 如何复现
@@ -279,6 +282,9 @@ R 包可在 `R/00_setup.R` 中把 `repos` 改为 `https://mirrors.tuna.tsinghua.
 
 展示页还包含基线对比表、森林图、列线图、校准曲线和决策曲线，图表都由页面原生绘制或内嵌，不引用外部图片；
 字体异步加载，Google Fonts 无法访问时自动使用系统字体，不会阻塞页面显示。
+
+**离线版**：[`dashboard/icu-monitor-offline.zip`](dashboard/icu-monitor-offline.zip) 是展示页的打包版（`src/build_dashboard.py` 生成）。
+码云不能直接运行网页，国内访客可以从码云下载这个 ZIP，解压后双击打开，断网也能使用全部功能。
 
 **离线材料**：`src/build_report.py` 按 TRIPOD 规范生成中文研究报告 PDF（13 页），`src/build_package.py`
 把展示页离线版、简洁版计算器、研究报告和源代码打成离线包，断网也能使用。两者都只在本机生成，不在网上公开。
