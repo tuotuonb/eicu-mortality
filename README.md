@@ -9,11 +9,9 @@
 [GitHub 下载](https://tuotuonb.github.io/eicu-mortality/dashboard/icu-monitor-offline.zip)。
 下载后解压，双击「ICU死亡风险监护台.html」即可用浏览器打开，不需要联网。
 
-**国内镜像**：[码云 gitee.com/tuotuobunni/eicu-mortality](https://gitee.com/tuotuobunni/eicu-mortality)（与 GitHub 仓库内容相同）
+**GitHub 仓库**：[github.com/tuotuonb/eicu-mortality](https://github.com/tuotuonb/eicu-mortality)（与本仓库内容相同）
 
 [![ICU 死亡风险监护台：调整入 ICU 首日指标，实时估算院内死亡风险](docs/images/showcase.png)](https://tuotuonb.github.io/eicu-mortality/)
-
-> 在中国大陆，GitHub 页面可能打不开或图片加载不出来，可以改看上面的码云镜像，或从码云下载离线版。
 
 ## 1. 研究问题
 
@@ -102,6 +100,7 @@ results/（表格、图表、报告） + dashboard/（风险计算器网页）
 eicu-mortality/
 ├── run_all.py              一键运行全流程
 ├── index.html              GitHub Pages 入口，跳转到项目展示页
+├── .github/README.md       GitHub 首页显示的说明（由 src/build_readme.py 从本文件生成）
 ├── .github/workflows/      推送到 main 后自动发布网页（GitHub Actions）
 ├── config/variables.csv    变量字典（中文名、单位、类型），Python 和 R 共用
 ├── sql/                    提数 SQL（DuckDB 方言）
@@ -115,6 +114,7 @@ eicu-mortality/
 │   ├── data_quality.py         数据质控报告
 │   ├── ml_models.py            随机森林、XGBoost、SHAP
 │   ├── build_dashboard.py      生成网页（在线版、离线版、Artifact 版）
+│   ├── build_readme.py         由 README.md 生成 GitHub 版首页说明
 │   ├── build_report.py         生成中文研究报告 PDF（只在本机生成）
 │   └── build_package.py        打包离线材料（只在本机生成）
 ├── R/                      R：统计分析与建模
@@ -147,7 +147,7 @@ Rscript R/00_setup.R
 `run_all.py` 会自动下载数据（并做 SHA256 校验），然后依次执行提数、质控、统计分析、机器学习对比，
 最后生成网页、研究报告 PDF（需要 Microsoft Edge）和离线包。研究报告和离线包输出到 `dist/`，不提交到仓库。
 
-**中国大陆网络**：安装依赖时可以使用清华镜像，速度更快：
+**安装加速**：可以使用清华镜像安装依赖：
 
 ```bash
 .venv/Scripts/python.exe -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
